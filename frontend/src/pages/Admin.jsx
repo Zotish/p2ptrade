@@ -28,7 +28,7 @@ function DisputeChat({ orderId }) {
       {open && (
         <div className="dispute-chat-log">
           {msgs.length === 0 && <p className="muted small">No messages in this order.</p>}
-          {msgs.map((m) => (
+          {(msgs || []).map((m) => (
             <div key={m.id} className="dispute-chat-msg">
               <span className="muted small">{m.sender_id?.slice(0,8)} · {new Date(m.created_at).toLocaleTimeString()}</span>
               <p>{m.body}</p>
@@ -608,7 +608,7 @@ export default function Admin() {
             <span>Addresses</span>
             <span>Status</span>
           </div>
-          {treasury.onchain.map((row) => (
+          {(treasury.onchain || []).map((row) => (
             <div className="market-row" key={`${row.asset}-${row.chain}`}>
               <span>{row.asset}</span>
               <span>{row.chain}</span>
@@ -634,7 +634,7 @@ export default function Admin() {
             <span>Total</span>
             <span></span>
           </div>
-          {treasury.userFunds.map((row) => (
+          {(treasury.userFunds || []).map((row) => (
             <div className="market-row" key={`userfund-${row.asset}`}>
               <span>{row.asset}</span>
               <span>{Number(row.total || 0).toFixed(6)}</span>
@@ -656,7 +656,7 @@ export default function Admin() {
             <span>Total</span>
             <span></span>
           </div>
-          {treasury.platformFees.map((row) => (
+          {(treasury.platformFees || []).map((row) => (
             <div className="market-row" key={`fee-${row.asset}`}>
               <span>{row.asset}</span>
               <span>{Number(row.amount || 0).toFixed(6)}</span>
@@ -687,7 +687,7 @@ export default function Admin() {
                 }
               >
                 <option value="">Select asset</option>
-                {assets.map((asset) => (
+                {(assets || []).map((asset) => (
                   <option key={asset.id} value={asset.symbol}>
                     {asset.symbol}
                   </option>
@@ -741,7 +741,7 @@ export default function Admin() {
               <span>Chain</span>
               <span>Kind</span>
             </div>
-            {treasury.treasuryAddresses.map((row) => (
+            {(treasury.treasuryAddresses || []).map((row) => (
               <div className="market-row" key={`treasury-${row.chain}`}>
                 <span>{row.address || row.error || "-"}</span>
                 <span>{row.chain}</span>
@@ -816,7 +816,7 @@ export default function Admin() {
           <label>
             Chain
             <select value={assetForm.chainCode} onChange={(e) => setAssetForm((s) => ({ ...s, chainCode: e.target.value }))}>
-              {chains.map((chain) => (
+              {(chains || []).map((chain) => (
                 <option key={chain.id} value={chain.code}>{chain.code}</option>
               ))}
             </select>
@@ -913,7 +913,7 @@ export default function Admin() {
             <span>Status</span>
             <span></span>
           </div>
-          {announcements.map((item) => (
+          {(announcements || []).map((item) => (
             <div className="market-row" key={item.id}>
               <span>{item.message}</span>
               <span className="muted small">
@@ -954,7 +954,7 @@ export default function Admin() {
               onChange={(e) => setProviderForm((s) => ({ ...s, countryCode: e.target.value }))}
             >
               <option value="">Select country</option>
-              {countries.map((c) => (
+              {(countries || []).map((c) => (
                 <option key={c.id} value={c.code}>
                   {c.name} ({c.code})
                 </option>
@@ -1009,7 +1009,7 @@ export default function Admin() {
             <span>Status</span>
             <span></span>
           </div>
-          {paymentProviders.map((item) => (
+          {(paymentProviders || []).map((item) => (
             <div className="market-row" key={item.id}>
               <span>{item.name}</span>
               <span>{item.country_code}</span>
@@ -1085,7 +1085,7 @@ export default function Admin() {
           <label>
             Fiat Code
             <select value={countryForm.fiatCode} onChange={(e) => setCountryForm((s) => ({ ...s, fiatCode: e.target.value }))}>
-              {fiats.map((f) => (
+              {(fiats || []).map((f) => (
                 <option key={f.code} value={f.code}>{f.code} - {f.name}</option>
               ))}
             </select>
@@ -1106,7 +1106,7 @@ export default function Admin() {
             <span>Network</span>
             <span>Status</span>
           </div>
-          {chains.map((chain) => (
+          {(chains || []).map((chain) => (
             <div className="market-row" key={chain.id}>
               <span>{chain.code} - {chain.name}</span>
               <span>{chain.kind} / {chain.network}</span>
@@ -1131,7 +1131,7 @@ export default function Admin() {
             <span>Endpoint</span>
             <span>Status</span>
           </div>
-          {health.map((item) =>
+          {(health || []).map((item) =>
             (item.checks || []).map((check, idx) => (
               <div className="market-row" key={`${item.code}-${idx}`}>
                 <span>{item.code} / {item.kind}</span>
@@ -1156,7 +1156,7 @@ export default function Admin() {
             <span>Fees</span>
             <span>Controls</span>
           </div>
-          {assets.map((asset) => (
+          {(assets || []).map((asset) => (
             <div className="market-row" key={asset.id}>
               <span>{asset.symbol} - {asset.name}</span>
               <span>{asset.chain_code}</span>
@@ -1215,7 +1215,7 @@ export default function Admin() {
             <span>Name</span>
             <span>Status</span>
           </div>
-          {fiats.map((fiat) => (
+          {(fiats || []).map((fiat) => (
             <div className="market-row" key={fiat.id}>
               <span>{fiat.code}</span>
               <span>{fiat.name}</span>
@@ -1238,7 +1238,7 @@ export default function Admin() {
             <span>Fiat</span>
             <span>Status</span>
           </div>
-          {countries.map((country) => (
+          {(countries || []).map((country) => (
             <div className="market-row" key={country.id}>
               <span>{country.code}</span>
               <span>{country.name}</span>
@@ -1266,7 +1266,7 @@ export default function Admin() {
 
         {disputes.length === 0 && <p className="muted">No active disputes. ✅</p>}
 
-        {disputes.map((d) => (
+        {(disputes || []).map((d) => (
           <div key={d.id} className="dispute-admin-card">
             <div className="dispute-admin-top">
               <div>
@@ -1345,7 +1345,7 @@ export default function Admin() {
               <span></span>
             </div>
           )}
-          {pendingWithdrawals.map((item) => (
+          {(pendingWithdrawals || []).map((item) => (
             <div className="market-row" key={item.id}>
               <span>{item.user_email}</span>
               <span>{item.asset} {item.amount} to {item.to_address}</span>
@@ -1373,7 +1373,7 @@ export default function Admin() {
             <span>Status</span>
             <span>Role</span>
           </div>
-          {users.map((item) => (
+          {(users || []).map((item) => (
             <div className="market-row" key={item.id} style={item.is_frozen ? {background:"rgba(224,82,82,0.08)"} : {}}>
               <span>
                 {item.email}
