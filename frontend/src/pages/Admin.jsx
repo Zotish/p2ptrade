@@ -12,7 +12,7 @@ function DisputeChat({ orderId }) {
     if (open) { setOpen(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/messages`, { credentials: "include" });
+      const res = await fetch(`${API_URL}/orders/${orderId}/messages`, { credentials: "include" });
       const data = await res.json();
       setMsgs(data.messages || []);
       setOpen(true);
@@ -166,7 +166,7 @@ export default function Admin() {
 
   async function resolveDispute(orderId, action, note) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/disputes/${orderId}/${action}`, {
+      const res = await fetch(`${API_URL}/admin/disputes/${orderId}/${action}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -332,7 +332,7 @@ export default function Admin() {
         isActive: providerForm.isActive
       };
       const endpoint = providerForm.id
-        ? `http://localhost:4000/admin/payment-providers/${providerForm.id}`
+        ? `${API_URL}/admin/payment-providers/${providerForm.id}`
         : `${API_URL}/admin/payment-providers`;
       const res = await fetch(endpoint, {
         method: providerForm.id ? "PATCH" : "POST",
@@ -356,7 +356,7 @@ export default function Admin() {
 
   async function toggleProvider(item) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/payment-providers/${item.id}`, {
+      const res = await fetch(`${API_URL}/admin/payment-providers/${item.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -372,7 +372,7 @@ export default function Admin() {
 
   async function deleteProvider(id) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/payment-providers/${id}`, {
+      const res = await fetch(`${API_URL}/admin/payment-providers/${id}`, {
         method: "DELETE",
         credentials: "include"
       });
@@ -417,7 +417,7 @@ export default function Admin() {
 
   async function toggleAnnouncement(item) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/announcements/${item.id}`, {
+      const res = await fetch(`${API_URL}/admin/announcements/${item.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -433,7 +433,7 @@ export default function Admin() {
 
   async function deleteAnnouncement(id) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/announcements/${id}`, {
+      const res = await fetch(`${API_URL}/admin/announcements/${id}`, {
         method: "DELETE",
         credentials: "include"
       });
@@ -447,7 +447,7 @@ export default function Admin() {
 
   async function toggleCountry(country) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/countries/${country.id}`, {
+      const res = await fetch(`${API_URL}/admin/countries/${country.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -463,7 +463,7 @@ export default function Admin() {
 
   async function toggleFiat(fiat) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/fiats/${fiat.id}`,
+      const res = await fetch(`${API_URL}/admin/fiats/${fiat.id}`,
         {
           method: "PATCH",
           credentials: "include",
@@ -507,7 +507,7 @@ export default function Admin() {
           ? { depositsEnabled: !asset.deposits_enabled }
           : { withdrawalsEnabled: !asset.withdrawals_enabled };
     try {
-      const res = await fetch(`http://localhost:4000/admin/assets/${asset.id}`, {
+      const res = await fetch(`${API_URL}/admin/assets/${asset.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -525,7 +525,7 @@ export default function Admin() {
     const edit = feeEdits[asset.id];
     if (!edit) return;
     try {
-      const res = await fetch(`http://localhost:4000/admin/assets/${asset.id}`, {
+      const res = await fetch(`${API_URL}/admin/assets/${asset.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -545,7 +545,7 @@ export default function Admin() {
 
   async function patchChain(id, body) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/chains/${id}`, {
+      const res = await fetch(`${API_URL}/admin/chains/${id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -561,7 +561,7 @@ export default function Admin() {
 
   async function changeUserRole(targetUser, role) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/users/${targetUser.id}/role`, {
+      const res = await fetch(`${API_URL}/admin/users/${targetUser.id}/role`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -578,7 +578,7 @@ export default function Admin() {
 
   async function handleWithdrawal(id, action) {
     try {
-      const res = await fetch(`http://localhost:4000/admin/withdrawals/${id}/${action}`, {
+      const res = await fetch(`${API_URL}/admin/withdrawals/${id}/${action}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1431,7 +1431,7 @@ export default function Admin() {
                 {item.is_frozen ? (
                   <button className="ghost" style={{borderColor:"var(--green)",color:"var(--green)"}}
                     onClick={async () => {
-                      await fetch(`http://localhost:4000/admin/users/${item.id}/unfreeze`, {method:"POST",credentials:"include"});
+                      await fetch(`${API_URL}/admin/users/${item.id}/unfreeze`, {method:"POST",credentials:"include"});
                       setUsers(prev => prev.map(u => u.id === item.id ? {...u, is_frozen: 0} : u));
                       setStatus(`${item.email} unfrozen`);
                     }}>🔓 Unfreeze</button>
@@ -1440,7 +1440,7 @@ export default function Admin() {
                     onClick={async () => {
                       const reason = window.prompt(`Reason to freeze ${item.email}:`);
                       if (!reason) return;
-                      await fetch(`http://localhost:4000/admin/users/${item.id}/freeze`, {
+                      await fetch(`${API_URL}/admin/users/${item.id}/freeze`, {
                         method:"POST", credentials:"include",
                         headers:{"Content-Type":"application/json"},
                         body: JSON.stringify({reason})

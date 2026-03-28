@@ -24,7 +24,7 @@ export default function Market() {
   }, []);
 
   useEffect(() => {
-    fetch(`http://localhost:4000/market?fiat=${fiat}`, {
+    fetch(`${API_URL}/market?fiat=${fiat}`, {
       credentials: "include",
       cache: "no-store"
     })

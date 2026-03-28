@@ -27,7 +27,7 @@ export default function Home() {
         const nextMetrics = catalog.metrics || {};
         const rows = await Promise.all(
           targetTokens.map((t) =>
-            fetch(`http://localhost:4000/offers?token=${t}`, {
+            fetch(`${API_URL}/offers?token=${t}`, {
               credentials: "include",
               cache: "no-store"
             })

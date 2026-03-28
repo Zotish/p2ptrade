@@ -22,7 +22,7 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/pay`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/pay`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -48,7 +48,7 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`http://localhost:4000/orders/${sellerActionId}/confirm`, {
+      const res = await fetch(`${API_URL}/orders/${sellerActionId}/confirm`, {
         method: "POST",
         credentials: "include"
       });
@@ -67,7 +67,7 @@ export default function Payments() {
     }
     setDetailsError("");
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -87,7 +87,7 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`http://localhost:4000/orders/${sellerActionId}/reject`, {
+      const res = await fetch(`${API_URL}/orders/${sellerActionId}/reject`, {
         method: "POST",
         credentials: "include"
       });

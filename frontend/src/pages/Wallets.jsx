@@ -140,7 +140,7 @@ export default function Wallets() {
     setFeeEstimate(null);
     try {
       const res = await fetch(
-        `http://localhost:4000/wallets/withdraw/estimate?asset=${encodeURIComponent(asset)}`,
+        `${API_URL}/wallets/withdraw/estimate?asset=${encodeURIComponent(asset)}`,
         { credentials: "include" }
       );
       const data = await res.json();

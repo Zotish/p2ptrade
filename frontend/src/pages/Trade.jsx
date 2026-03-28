@@ -91,7 +91,7 @@ export default function Trade() {
   }, []);
 
   useEffect(() => {
-    fetch(`http://localhost:4000/offers?country=${country}&token=${token}&fiat=${fiatFilter}`, {
+    fetch(`${API_URL}/offers?country=${country}&token=${token}&fiat=${fiatFilter}`, {
       cache: "no-store",
       credentials: "include"
     })
@@ -126,7 +126,7 @@ export default function Trade() {
       setMyOffers([]);
       return;
     }
-    fetch(`http://localhost:4000/offers/mine?fiat=${fiatFilter}`, {
+    fetch(`${API_URL}/offers/mine?fiat=${fiatFilter}`, {
       credentials: "include"
     })
       .then(async (r) => {
@@ -154,7 +154,7 @@ export default function Trade() {
   // ── Orders fetch functions ──────────────────────────────────
   async function fetchBuyerOrders() {
     try {
-      const r = await fetch(`http://localhost:4000/orders/mine?fiat=${fiatFilter}`, { credentials: "include" });
+      const r = await fetch(`${API_URL}/orders/mine?fiat=${fiatFilter}`, { credentials: "include" });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Failed to load orders");
       setBuyerOrders(data.orders || []);
@@ -167,7 +167,7 @@ export default function Trade() {
 
   async function fetchSellerOrders() {
     try {
-      const r = await fetch(`http://localhost:4000/orders/selling?fiat=${fiatFilter}`, { credentials: "include" });
+      const r = await fetch(`${API_URL}/orders/selling?fiat=${fiatFilter}`, { credentials: "include" });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Failed to load orders");
       setSellerOrders(data.orders || []);
@@ -317,7 +317,7 @@ export default function Trade() {
 
   async function submitPaymentProof(orderId) {
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/pay`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/pay`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -339,7 +339,7 @@ export default function Trade() {
     const reason = window.prompt("Dispute reason (briefly explain why you're disputing):");
     if (reason === null) return; // user cancelled prompt
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/dispute`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/dispute`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -359,7 +359,7 @@ export default function Trade() {
   async function cancelOrder(orderId) {
     if (!window.confirm("Cancel this order? The seller's crypto will be returned and your payment will NOT be refunded.")) return;
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/cancel`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/cancel`, {
         method: "POST",
         credentials: "include"
       });
@@ -376,7 +376,7 @@ export default function Trade() {
 
   async function confirmOrder(orderId) {
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/confirm`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/confirm`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" }
@@ -394,7 +394,7 @@ export default function Trade() {
 
   async function rejectOrder(orderId) {
     try {
-      const res = await fetch(`http://localhost:4000/orders/${orderId}/reject`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}/reject`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" }
@@ -477,7 +477,7 @@ export default function Trade() {
     setPaymentDetails(null);
     setPaymentReference("");
     setPaymentNote("");
-    fetch(`http://localhost:4000/offers/${offer.id}`, {
+    fetch(`${API_URL}/offers/${offer.id}`, {
       credentials: "include"
     })
       .then((r) => r.json())
@@ -522,7 +522,7 @@ export default function Trade() {
     try {
       setChatError("");
       setActiveConversationId(conversationId);
-      const res = await fetch(`http://localhost:4000/chat/conversations/${conversationId}/messages`, {
+      const res = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -1323,7 +1323,7 @@ export default function Trade() {
                         disabled={!activeConversationId || !chatMessage}
                         onClick={async () => {
                           if (!activeConversationId || !chatMessage) return;
-                          const res = await fetch(`http://localhost:4000/chat/conversations/${activeConversationId}/messages`, {
+                          const res = await fetch(`${API_URL}/chat/conversations/${activeConversationId}/messages`, {
                             method: "POST",
                             credentials: "include",
                             headers: { "Content-Type": "application/json" },
