@@ -20,8 +20,11 @@ export function SocketProvider({ children }) {
     }
 
     const s = io(`${API_URL}`, {
-      withCredentials: true,              // cookie পাঠাবে (JWT auth)
-      transports: ["websocket", "polling"] // websocket first, polling fallback
+      withCredentials: true,
+      transports: ["polling", "websocket"], // polling first (Railway compatible), then upgrade
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000
     });
 
     s.on("connect", () => {
