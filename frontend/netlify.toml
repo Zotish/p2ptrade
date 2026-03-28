@@ -6,6 +6,21 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# ── API proxy → Railway (cookie same-origin এ কাজ করবে) ──────
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://p2ptrade-production.up.railway.app/:splat"
+  status = 200
+  force  = true
+
+# ── Socket.io proxy → Railway ─────────────────────────────────
+[[redirects]]
+  from   = "/socket.io/*"
+  to     = "https://p2ptrade-production.up.railway.app/socket.io/:splat"
+  status = 200
+  force  = true
+
+# ── React Router — সব unknown route index.html-এ যাবে ────────
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
