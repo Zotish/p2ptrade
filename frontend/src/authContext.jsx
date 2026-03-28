@@ -1,5 +1,5 @@
-import { API_URL } from "./config.js";
 import { createContext, useContext, useEffect, useState } from "react";
+import { apiFetch } from "./api.js";
 
 const AuthContext = createContext(null);
 
@@ -10,17 +10,15 @@ export function AuthProvider({ children }) {
 
   async function refresh() {
     try {
-      const res = await fetch(`${API_URL}/auth/me`, { credentials: "include" });
+      const res = await apiFetch("/auth/me");
       if (!res.ok) {
         setUser(null);
       } else {
         const data = await res.json();
         setUser(data.user || null);
         if (data.user) {
-          fetch(`${API_URL}/scan/recent`, {
+          apiFetch("/scan/recent", {
             method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ blocks: 2000 })
           })
             .then(() => setScanTick((v) => v + 1))
@@ -33,10 +31,11 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    await fetch(`${API_URL}/auth/logout`, {
+    await apiFetch("/auth/logout", {
       method: "POST",
-      credentials: "include"
     });
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     setUser(null);
   }
 

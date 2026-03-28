@@ -1,7 +1,7 @@
-import { API_URL } from "../config.js";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../authContext.jsx";
+import { apiFetch } from "../api.js";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -16,14 +16,14 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await apiFetch("/auth/login", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
+      if (data.token) localStorage.setItem("access_token", data.token);
+      if (data.refreshToken) localStorage.setItem("refresh_token", data.refreshToken);
       setSession(data.user || null);
       await refresh();
       navigate(data.user?.role === "admin" ? "/admin" : "/wallets");

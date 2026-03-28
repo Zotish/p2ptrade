@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../authContext.jsx";
+import { apiFetch } from "../api.js";
 
 export default function Payments() {
   const { user } = useAuth();
@@ -22,10 +23,8 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/pay`, {
+      const res = await apiFetch(`/orders/${orderId}/pay`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: paymentMethod,
           reference: paymentReference,
@@ -48,9 +47,8 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${sellerActionId}/confirm`, {
-        method: "POST",
-        credentials: "include"
+      const res = await apiFetch(`/orders/${sellerActionId}/confirm`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Confirmation failed");
@@ -67,9 +65,7 @@ export default function Payments() {
     }
     setDetailsError("");
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
-        credentials: "include"
-      });
+      const res = await apiFetch(`/orders/${orderId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load order");
       setOrderDetails(data);
@@ -87,9 +83,8 @@ export default function Payments() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${sellerActionId}/reject`, {
-        method: "POST",
-        credentials: "include"
+      const res = await apiFetch(`/orders/${sellerActionId}/reject`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Rejection failed");

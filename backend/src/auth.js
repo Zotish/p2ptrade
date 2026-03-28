@@ -25,7 +25,9 @@ export async function comparePassword(password, hash) {
 }
 
 export async function requireAuth(req, res, next) {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     req.user = verifyToken(token);
@@ -43,7 +45,9 @@ export async function requireAuth(req, res, next) {
 }
 
 export async function requireAdmin(req, res, next) {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     req.user = verifyToken(token);

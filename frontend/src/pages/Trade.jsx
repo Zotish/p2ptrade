@@ -1,8 +1,8 @@
-import { API_URL } from "../config.js";
 import { useEffect, useState } from "react";
 import { useAuth } from "../authContext.jsx";
 import { useSocket } from "../socketContext.jsx";
 import { OfferCard } from "../components/OfferCard.jsx";
+import { apiFetch } from "../api.js";
 
 export default function Trade() {
   const { user } = useAuth();
@@ -64,9 +64,7 @@ export default function Trade() {
   const selectedCountry = countries.find((c) => c.code === country) || null;
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/public-catalog`, {
-      credentials: "include"
-    })
+    apiFetch("/admin/public-catalog")
       .then((r) => r.json())
       .then((data) => {
         const list = data.fiats || [];
@@ -91,9 +89,8 @@ export default function Trade() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/offers?country=${country}&token=${token}&fiat=${fiatFilter}`, {
-      cache: "no-store",
-      credentials: "include"
+    apiFetch(`/offers?country=${country}&token=${token}&fiat=${fiatFilter}`, {
+      cache: "no-store"
     })
       .then(async (r) => {
         const data = await r.json();
@@ -126,9 +123,7 @@ export default function Trade() {
       setMyOffers([]);
       return;
     }
-    fetch(`${API_URL}/offers/mine?fiat=${fiatFilter}`, {
-      credentials: "include"
-    })
+    apiFetch(`/offers/mine?fiat=${fiatFilter}`)
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || "Failed to load offers");
@@ -154,7 +149,7 @@ export default function Trade() {
   // ── Orders fetch functions ──────────────────────────────────
   async function fetchBuyerOrders() {
     try {
-      const r = await fetch(`${API_URL}/orders/mine?fiat=${fiatFilter}`, { credentials: "include" });
+      const r = await apiFetch(`/orders/mine?fiat=${fiatFilter}`);
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Failed to load orders");
       setBuyerOrders(data.orders || []);
@@ -167,7 +162,7 @@ export default function Trade() {
 
   async function fetchSellerOrders() {
     try {
-      const r = await fetch(`${API_URL}/orders/selling?fiat=${fiatFilter}`, { credentials: "include" });
+      const r = await apiFetch(`/orders/selling?fiat=${fiatFilter}`);
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Failed to load orders");
       setSellerOrders(data.orders || []);
@@ -295,10 +290,8 @@ export default function Trade() {
           throw new Error(`Maximum is ${activeOffer.max_amount}`);
         }
       }
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await apiFetch("/orders", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offerId, amountFiat: amount })
       });
       const data = await res.json();
@@ -317,10 +310,8 @@ export default function Trade() {
 
   async function submitPaymentProof(orderId) {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/pay`, {
+      const res = await apiFetch(`/orders/${orderId}/pay`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: selectedMethod,
           reference: paymentReference,
@@ -339,10 +330,8 @@ export default function Trade() {
     const reason = window.prompt("Dispute reason (briefly explain why you're disputing):");
     if (reason === null) return; // user cancelled prompt
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/dispute`, {
+      const res = await apiFetch(`/orders/${orderId}/dispute`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason })
       });
       const data = await res.json();
@@ -359,9 +348,8 @@ export default function Trade() {
   async function cancelOrder(orderId) {
     if (!window.confirm("Cancel this order? The seller's crypto will be returned and your payment will NOT be refunded.")) return;
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/cancel`, {
-        method: "POST",
-        credentials: "include"
+      const res = await apiFetch(`/orders/${orderId}/cancel`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to cancel");
@@ -376,10 +364,8 @@ export default function Trade() {
 
   async function confirmOrder(orderId) {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/confirm`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }
+      const res = await apiFetch(`/orders/${orderId}/confirm`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to confirm");
@@ -394,10 +380,8 @@ export default function Trade() {
 
   async function rejectOrder(orderId) {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/reject`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }
+      const res = await apiFetch(`/orders/${orderId}/reject`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to reject");
@@ -430,10 +414,8 @@ export default function Trade() {
         throw new Error("Enter a valid premium");
       }
 
-      const res = await fetch(`${API_URL}/offers`, {
+      const res = await apiFetch("/offers", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           country,
           token,
@@ -477,9 +459,7 @@ export default function Trade() {
     setPaymentDetails(null);
     setPaymentReference("");
     setPaymentNote("");
-    fetch(`${API_URL}/offers/${offer.id}`, {
-      credentials: "include"
-    })
+    apiFetch(`/offers/${offer.id}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.offer?.payment_details) {
@@ -507,9 +487,7 @@ export default function Trade() {
 
   async function loadConversations() {
     try {
-      const res = await fetch(`${API_URL}/chat/conversations`, {
-        credentials: "include"
-      });
+      const res = await apiFetch("/chat/conversations");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load conversations");
       setChatConversations(data.conversations || []);
@@ -522,9 +500,7 @@ export default function Trade() {
     try {
       setChatError("");
       setActiveConversationId(conversationId);
-      const res = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
-        credentials: "include"
-      });
+      const res = await apiFetch(`/chat/conversations/${conversationId}/messages`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load messages");
       setActiveMessages(data.messages || []);
@@ -540,10 +516,8 @@ export default function Trade() {
     }
     try {
       setChatError("");
-      const res = await fetch(`${API_URL}/chat/conversations`, {
+      const res = await apiFetch("/chat/conversations", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipientId })
       });
       const data = await res.json();
@@ -1323,10 +1297,8 @@ export default function Trade() {
                         disabled={!activeConversationId || !chatMessage}
                         onClick={async () => {
                           if (!activeConversationId || !chatMessage) return;
-                          const res = await fetch(`${API_URL}/chat/conversations/${activeConversationId}/messages`, {
+                          const res = await apiFetch(`/chat/conversations/${activeConversationId}/messages`, {
                             method: "POST",
-                            credentials: "include",
-                            headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ message: chatMessage })
                           });
                           const data = await res.json();

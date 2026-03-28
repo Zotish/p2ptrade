@@ -1,7 +1,7 @@
-import { API_URL } from "./config.js";
 import { useEffect, useState } from "react";
 import { OfferCard } from "./components/OfferCard.jsx";
 import { Link } from "react-router-dom";
+import { apiFetch } from "./api.js";
 
 const COUNTRIES = [
   { code: "GH", name: "Ghana", currency: "GHS" },
@@ -42,9 +42,8 @@ export default function App() {
   const [sellerActionId, setSellerActionId] = useState("");
 
   useEffect(() => {
-    fetch(`${API_URL}/offers?country=${country}&token=${token}`, {
-      cache: "no-store",
-      credentials: "include"
+    apiFetch(`/offers?country=${country}&token=${token}`, {
+      cache: "no-store"
     })
       .then(async (r) => {
         const data = await r.json();
@@ -64,9 +63,7 @@ export default function App() {
   }, [country, token]);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/public-catalog`, {
-      credentials: "include"
-    })
+    apiFetch("/admin/public-catalog")
       .then((r) => r.json())
       .then((data) => {
         setAnnouncements(data.announcements || []);
@@ -76,7 +73,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/auth/me`, { credentials: "include" })
+    apiFetch("/auth/me")
       .then(async (r) => {
         if (!r.ok) return null;
         return r.json();
@@ -90,7 +87,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     setWalletLoading(true);
-    fetch(`${API_URL}/wallets/addresses`, { credentials: "include" })
+    apiFetch("/wallets/addresses")
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || "Failed to load wallets");
@@ -107,10 +104,11 @@ export default function App() {
   }, [user]);
 
   function logout() {
-    fetch(`${API_URL}/auth/logout`, {
-      method: "POST",
-      credentials: "include"
+    apiFetch("/auth/logout", {
+      method: "POST"
     }).finally(() => {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
       setUser(null);
     });
   }
@@ -119,10 +117,8 @@ export default function App() {
     setWalletLoading(true);
     setWalletError("");
     try {
-      const res = await fetch(`${API_URL}/wallets/address`, {
+      const res = await apiFetch("/wallets/address", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chain: walletChain })
       });
       const data = await res.json();
@@ -139,10 +135,8 @@ export default function App() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await apiFetch("/orders", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offerId, amountFiat })
       });
       const data = await res.json();
@@ -162,10 +156,8 @@ export default function App() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/pay`, {
+      const res = await apiFetch(`/orders/${orderId}/pay`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: paymentMethod,
           reference: paymentReference,
@@ -188,9 +180,8 @@ export default function App() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${sellerActionId}/confirm`, {
-        method: "POST",
-        credentials: "include"
+      const res = await apiFetch(`/orders/${sellerActionId}/confirm`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Confirmation failed");
@@ -208,9 +199,8 @@ export default function App() {
     setOrderError("");
     setOrderStatus("");
     try {
-      const res = await fetch(`${API_URL}/orders/${sellerActionId}/reject`, {
-        method: "POST",
-        credentials: "include"
+      const res = await apiFetch(`/orders/${sellerActionId}/reject`, {
+        method: "POST"
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Rejection failed");

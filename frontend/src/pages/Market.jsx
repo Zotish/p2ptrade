@@ -1,5 +1,5 @@
-import { API_URL } from "../config.js";
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api.js";
 
 export default function Market() {
   const [fiat, setFiat] = useState("USD");
@@ -9,9 +9,7 @@ export default function Market() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/public-catalog`, {
-      credentials: "include"
-    })
+    apiFetch("/admin/public-catalog")
       .then((r) => r.json())
       .then((data) => {
         setAssets(data.assets || []);
@@ -24,8 +22,7 @@ export default function Market() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/market?fiat=${fiat}`, {
-      credentials: "include",
+    apiFetch(`/market?fiat=${fiat}`, {
       cache: "no-store"
     })
       .then(async (r) => {

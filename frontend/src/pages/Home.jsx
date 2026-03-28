@@ -1,5 +1,5 @@
-import { API_URL } from "../config.js";
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api.js";
 
 export default function Home() {
   const [prices, setPrices] = useState({});
@@ -18,7 +18,7 @@ export default function Home() {
 
     async function load() {
       try {
-        const catalog = await fetch(`${API_URL}/admin/public-catalog`)
+        const catalog = await apiFetch("/admin/public-catalog")
           .then((r) => r.json())
           .catch(() => ({ assets: [] }));
         const nextTokens = (catalog.assets || []).map((asset) => asset.symbol);
@@ -27,8 +27,7 @@ export default function Home() {
         const nextMetrics = catalog.metrics || {};
         const rows = await Promise.all(
           targetTokens.map((t) =>
-            fetch(`${API_URL}/offers?token=${t}`, {
-              credentials: "include",
+            apiFetch(`/offers?token=${t}`, {
               cache: "no-store"
             })
               .then((r) => r.json())

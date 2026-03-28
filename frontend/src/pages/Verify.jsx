@@ -1,7 +1,7 @@
-import { API_URL } from "../config.js";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../authContext.jsx";
+import { apiFetch } from "../api.js";
 
 export default function Verify() {
   const [email, setEmail] = useState("");
@@ -19,14 +19,14 @@ export default function Verify() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/auth/verify`, {
+      const res = await apiFetch("/auth/verify", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email || stateEmail, code })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed");
+      if (data.token) localStorage.setItem("access_token", data.token);
+      if (data.refreshToken) localStorage.setItem("refresh_token", data.refreshToken);
       setSession(data.user || null);
       await refresh();
       navigate(data.user?.role === "admin" ? "/admin" : "/wallets");
@@ -61,10 +61,8 @@ export default function Verify() {
           setLoading(true);
           setError("");
           try {
-            const res = await fetch(`${API_URL}/auth/resend`, {
+            const res = await apiFetch("/auth/resend", {
               method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email: email || stateEmail })
             });
             const data = await res.json();

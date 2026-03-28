@@ -36,7 +36,9 @@ function getUploadPathFromUrl(url) {
 }
 
 function requireAuthUser(req, res, next) {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = verifyToken(token);
@@ -58,6 +60,7 @@ function setAuthCookies(res, payload) {
   };
   res.cookie("access_token", access, { ...options, maxAge: 15 * 60 * 1000 });
   res.cookie("refresh_token", refresh, { ...options, maxAge: 30 * 24 * 60 * 60 * 1000 });
+  return { access, refresh };
 }
 
 authRouter.post("/signup", signupLimiter, async (req, res) => {
@@ -102,9 +105,11 @@ authRouter.post("/login", authLimiter, async (req, res) => {
     password === config.adminLoginPassword
   ) {
     const payload = { id: "admin-fixed", email: config.adminLoginEmail, role: "admin" };
-    setAuthCookies(res, payload);
+    const { access, refresh } = setAuthCookies(res, payload);
     return res.json({
-      user: { id: payload.id, email: payload.email, handle: "admin", role: "admin" }
+      user: { id: payload.id, email: payload.email, handle: "admin", role: "admin" },
+      token: access,
+      refreshToken: refresh
     });
   }
   const user = await getUserByEmail(normalizedEmail);
@@ -114,7 +119,7 @@ authRouter.post("/login", authLimiter, async (req, res) => {
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
   const role = getUserRole(user);
   const payload = { id: user.id, email: user.email, role };
-  setAuthCookies(res, payload);
+  const { access, refresh } = setAuthCookies(res, payload);
   await updateUserLastSeen(user.id);
   // auto rescan recent blocks for missed deposits
   try {
@@ -130,7 +135,9 @@ authRouter.post("/login", authLimiter, async (req, res) => {
       phone: user.phone,
       profile_name: user.profile_name,
       profile_image_url: user.profile_image_url
-    }
+    },
+    token: access,
+    refreshToken: refresh
   });
 });
 
@@ -143,7 +150,7 @@ authRouter.post("/verify", verifyLimiter, async (req, res) => {
   if (!user) return res.status(400).json({ error: "Invalid or expired code" });
   const role = getUserRole(user);
   const payload = { id: user.id, email: user.email, role };
-  setAuthCookies(res, payload);
+  const { access, refresh } = setAuthCookies(res, payload);
   await updateUserLastSeen(user.id);
   try {
     const { scanRecentForUser } = await import("../services/scanRecent.js");
@@ -158,7 +165,9 @@ authRouter.post("/verify", verifyLimiter, async (req, res) => {
       phone: user.phone,
       profile_name: user.profile_name,
       profile_image_url: user.profile_image_url
-    }
+    },
+    token: access,
+    refreshToken: refresh
   });
 });
 
@@ -176,12 +185,14 @@ authRouter.post("/resend", async (req, res) => {
 });
 
 authRouter.post("/refresh", async (req, res) => {
-  const token = req.cookies?.refresh_token;
+  const authHeader = req.headers?.authorization;
+  const bearerRefresh = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerRefresh || req.cookies?.refresh_token;
   if (!token) return res.status(401).json({ error: "Missing refresh token" });
   try {
     const payload = verifyToken(token);
-    setAuthCookies(res, { id: payload.id, email: payload.email, role: payload.role || "user" });
-    res.json({ ok: true });
+    const { access, refresh } = setAuthCookies(res, { id: payload.id, email: payload.email, role: payload.role || "user" });
+    res.json({ ok: true, token: access, refreshToken: refresh });
   } catch {
     res.status(401).json({ error: "Invalid refresh token" });
   }
@@ -234,7 +245,9 @@ authRouter.post("/logout", (req, res) => {
 });
 
 authRouter.get("/me", async (req, res) => {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = verifyToken(token);
@@ -263,7 +276,9 @@ authRouter.get("/me", async (req, res) => {
 });
 
 authRouter.patch("/profile", async (req, res) => {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = verifyToken(token);
@@ -290,7 +305,9 @@ authRouter.patch("/profile", async (req, res) => {
 });
 
 authRouter.patch("/password", async (req, res) => {
-  const token = req.cookies?.access_token;
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies?.access_token;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = verifyToken(token);

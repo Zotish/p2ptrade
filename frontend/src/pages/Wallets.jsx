@@ -1,7 +1,7 @@
-import { API_URL } from "../config.js";
 import { useEffect, useState } from "react";
 import { useAuth } from "../authContext.jsx";
 import { HistoryTable } from "../components/HistoryTable.jsx";
+import { apiFetch } from "../api.js";
 
 export default function Wallets() {
   const { user, scanTick, loading } = useAuth();
@@ -27,9 +27,7 @@ export default function Wallets() {
   const sentWithdrawals = withdrawals.filter((item) => item.status === "sent");
 
   useEffect(() => {
-    fetch(`${API_URL}/wallets/catalog`, {
-      credentials: "include"
-    })
+    apiFetch("/wallets/catalog")
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || "Failed to load wallet catalog");
@@ -64,7 +62,7 @@ export default function Wallets() {
   useEffect(() => {
     if (!user) return;
     setWalletLoading(true);
-    fetch(`${API_URL}/wallets/addresses`, { credentials: "include" })
+    apiFetch("/wallets/addresses")
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || "Failed to load wallets");
@@ -87,9 +85,9 @@ export default function Wallets() {
     async function loadWalletData() {
       try {
         const [balancesRes, depositsRes, withdrawalsRes] = await Promise.all([
-          fetch(`${API_URL}/wallets/balances`, { credentials: "include" }),
-          fetch(`${API_URL}/wallets/deposits`, { credentials: "include" }),
-          fetch(`${API_URL}/wallets/withdrawals`, { credentials: "include" })
+          apiFetch("/wallets/balances"),
+          apiFetch("/wallets/deposits"),
+          apiFetch("/wallets/withdrawals")
         ]);
 
         const [balancesData, depositsData, withdrawalsData] = await Promise.all([
@@ -119,10 +117,8 @@ export default function Wallets() {
     setWalletLoading(true);
     setWalletError("");
     try {
-      const res = await fetch(`${API_URL}/wallets/address`, {
+      const res = await apiFetch("/wallets/address", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chain: walletChain })
       });
       const data = await res.json();
@@ -139,9 +135,8 @@ export default function Wallets() {
     setFeeLoading(true);
     setFeeEstimate(null);
     try {
-      const res = await fetch(
-        `${API_URL}/wallets/withdraw/estimate?asset=${encodeURIComponent(asset)}`,
-        { credentials: "include" }
+      const res = await apiFetch(
+        `/wallets/withdraw/estimate?asset=${encodeURIComponent(asset)}`
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Estimate failed");
@@ -158,10 +153,8 @@ export default function Wallets() {
   async function submitWithdraw() {
     setWithdrawStatus("");
     try {
-      const res = await fetch(`${API_URL}/wallets/withdraw`, {
+      const res = await apiFetch("/wallets/withdraw", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chain: selectedWithdrawAsset?.chain_code || "BNB",
           asset: withdrawAsset,

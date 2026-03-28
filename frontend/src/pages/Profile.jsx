@@ -1,6 +1,6 @@
-import { API_URL } from "../config.js";
 import { useAuth } from "../authContext.jsx";
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api.js";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -24,10 +24,8 @@ export default function Profile() {
     setStatus("");
     setError("");
     try {
-      const res = await fetch(`${API_URL}/auth/profile`, {
+      const res = await apiFetch("/auth/profile", {
         method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ handle, phone, profileName, profileImageUrl })
       });
       const data = await res.json();
@@ -46,9 +44,8 @@ export default function Profile() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${API_URL}/auth/upload/profile`, {
+      const res = await apiFetch("/auth/upload/profile", {
         method: "POST",
-        credentials: "include",
         body: formData
       });
       const data = await res.json();

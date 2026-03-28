@@ -1,5 +1,5 @@
-import { API_URL } from "../config.js";
 import { useState } from "react";
+import { apiFetch } from "../api.js";
 
 export default function Security() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -11,10 +11,8 @@ export default function Security() {
     setStatus("");
     setError("");
     try {
-      const res = await fetch(`${API_URL}/auth/password`, {
+      const res = await apiFetch("/auth/password", {
         method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword })
       });
       const data = await res.json();
