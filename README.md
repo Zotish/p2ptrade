@@ -26,3 +26,4 @@ Creating offers and orders requires auth and uses the token user id.
 - Replace mock pricing with live price feeds.
 - Implement real escrow and chain watchers.
 - Add payment integrations per country.
+# p2ptrade
