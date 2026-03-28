@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)",
+      "Bash(node -e \":*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:4000/wallets/withdraw/estimate?asset=BTC\")",
+      "Bash(pkill -f \"node.*index.js\")",
+      "Bash(pkill -f \"nodemon\")",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\" \"http://localhost:4000/wallets/withdraw/estimate?asset=BTC\")",
+      "Bash(curl -s -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{\"\"\"\"email\"\"\"\":\"\"\"\"hookedchain1@gmail.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Admin@12345\"\"\"\"}' -D -)",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e \"const s = require\\(''''speakeasy''''\\); console.log\\(Object.keys\\(s\\)\\)\")",
+      "Bash(curl -s http://localhost:4000/)",
+      "Bash(curl -s http://localhost:4000/health)",
+      "Bash(timeout 15 node src/index.js)",
+      "Bash(curl -s http://localhost:4000/admin/public-catalog)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(ngrok version:*)",
+      "Bash(curl -L \"https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-arm64.zip\" -o ngrok.zip)",
+      "Bash(unzip -o ngrok.zip)",
+      "Bash(sudo mv:*)",
+      "Bash(cp /tmp/ngrok \"/Users/zotishchandra/Desktop/all in one/p2p/ngrok\")",
+      "Bash(chmod +x \"/Users/zotishchandra/Desktop/all in one/p2p/ngrok\")",
+      "Bash(\"/Users/zotishchandra/Desktop/all in:*)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -H \"Host: andrew-quaquaversal-keagan.ngrok-free.dev\" http://localhost:5173/)",
+      "Bash(npm run:*)",
+      "Bash(pkill -f \"ngrok\")",
+      "Bash(curl -sv \"http://localhost:4000/admin/public-catalog\")",
+      "Bash(python3 -m json.tool)"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "P2P Backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/index.js"],
+      "port": 4000,
+      "cwd": "/Users/zotishchandra/Desktop/all in one/p2p/backend"
+    },
+    {
+      "name": "P2P Frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "cwd": "/Users/zotishchandra/Desktop/all in one/p2p/frontend"
+    }
+  ]
+}

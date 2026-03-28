@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Environment variables (SECRET — GitHub-এ যাবে না)
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Database (local only)
+backend/data/
+backend/uploads/
+
+# ngrok binary
+ngrok
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
