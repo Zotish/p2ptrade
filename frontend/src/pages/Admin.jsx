@@ -114,7 +114,7 @@ export default function Admin() {
     details: "",
     isActive: true
   });
-  const [treasury, setTreasury] = useState({ onchain: [], platformFees: [], userFunds: [] });
+  const [treasury, setTreasury] = useState({ onchain: [], platformFees: [], userFunds: [], treasuryAddresses: [] });
   const [treasuryLoading, setTreasuryLoading] = useState(false);
   const [treasuryUpdatedAt, setTreasuryUpdatedAt] = useState("");
   const [treasuryWithdraw, setTreasuryWithdraw] = useState(EMPTY_TREASURY_WITHDRAW);
@@ -1132,7 +1132,7 @@ export default function Admin() {
             <span>Status</span>
           </div>
           {health.map((item) =>
-            item.checks.map((check, idx) => (
+            (item.checks || []).map((check, idx) => (
               <div className="market-row" key={`${item.code}-${idx}`}>
                 <span>{item.code} / {item.kind}</span>
                 <span className="wallet-address">{check.url}</span>
