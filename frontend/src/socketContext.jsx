@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./authContext.jsx";
-import { WS_URL } from "./config.js";
+import { API_URL, WS_URL } from "./config.js";
 
 const SocketContext = createContext(null);
 
