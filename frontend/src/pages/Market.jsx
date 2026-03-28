@@ -12,8 +12,8 @@ export default function Market() {
     apiFetch("/admin/public-catalog")
       .then((r) => r.json())
       .then((data) => {
-        setAssets(data.assets || []);
-        setFiats(data.fiats || []);
+        setAssets(Array.isArray(data.assets) ? data.assets : []);
+        setFiats(Array.isArray(data.fiats) ? data.fiats : []);
         if (data.fiats?.length && !data.fiats.find((f) => f.code === fiat)) {
           setFiat(data.fiats[0].code);
         }
@@ -31,7 +31,7 @@ export default function Market() {
         return data;
       })
       .then((data) => {
-        setPairs(data.pairs || []);
+        setPairs(Array.isArray(data.pairs) ? data.pairs : []);
         setError("");
       })
       .catch((err) => setError(err.message || "Failed to load market"));
@@ -47,7 +47,7 @@ export default function Market() {
             <p className="muted">Live prices from your platform.</p>
           </div>
           <select value={fiat} onChange={(e) => setFiat(e.target.value)}>
-            {fiats.map((f) => (
+            {(Array.isArray(fiats) ? fiats : []).map((f) => (
               <option key={f.code} value={f.code}>
                 {f.code} - {f.name}
               </option>
@@ -61,7 +61,7 @@ export default function Market() {
             <span>Price</span>
             <span>Source</span>
           </div>
-          {pairs.map((row) => (
+          {(Array.isArray(pairs) ? pairs : []).map((row) => (
             <div key={`${row.token}-${row.base}`} className="market-row">
               <span>{row.token}/{row.base}</span>
               <span>{row.price ? row.price : "-"}</span>
@@ -71,7 +71,7 @@ export default function Market() {
         </div>
         {assets.length > 0 && (
           <p className="muted small">
-            Active assets: {assets.map((asset) => asset.symbol).join(", ")}
+            Active assets: {(Array.isArray(assets) ? assets : []).map((asset) => asset.symbol).join(", ")}
           </p>
         )}
       </div>

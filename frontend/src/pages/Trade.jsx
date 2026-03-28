@@ -572,7 +572,7 @@ export default function Trade() {
     <>
       {/* Toast notifications */}
       <div className="toast-container">
-        {toasts.map((t) => (
+        {(Array.isArray(toasts) ? toasts : []).map((t) => (
           <div key={t.id} className={`toast toast-${t.type}`}>
             {t.message}
           </div>
@@ -609,7 +609,7 @@ export default function Trade() {
             onChange={(e) => setCountry(e.target.value)}
             disabled={!countries.length}
           >
-            {countries.map((c) => (
+            {(Array.isArray(countries) ? countries : []).map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name} ({c.fiat_code})
               </option>
@@ -619,7 +619,7 @@ export default function Trade() {
         <label>
           Token
           <select value={token} onChange={(e) => setToken(e.target.value)}>
-            {(assets.length ? assets.map((a) => a.symbol) : ["BTC", "USDT", "USDC", "BNB", "SOL", "ETH"]).map((t) => (
+            {(Array.isArray(assets) && assets.length ? assets.map((a) => a.symbol) : ["BTC", "USDT", "USDC", "BNB", "SOL", "ETH"]).map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
@@ -629,7 +629,7 @@ export default function Trade() {
         <label>
           Fiat
           <select value={fiatFilter} disabled>
-            {fiats.map((f) => (
+            {(Array.isArray(fiats) ? fiats : []).map((f) => (
               <option key={f.code} value={f.code}>
                 {f.code} - {f.name}
               </option>
@@ -640,7 +640,7 @@ export default function Trade() {
 
       <section className="grid">
         {offers.length === 0 && <div className="empty">No offers found.</div>}
-        {offers.map((offer) => (
+        {(Array.isArray(offers) ? offers : []).map((offer) => (
           <div key={offer.id} className="trade-card">
             <OfferCard
               offer={offer}
@@ -802,7 +802,7 @@ export default function Trade() {
                 </label>
               </div>
               <div className="pay-grid">
-                {PAYMENT_OPTIONS.map((opt) => (
+                {(Array.isArray(PAYMENT_OPTIONS) ? PAYMENT_OPTIONS : []).map((opt) => (
                   <label key={opt.id} className="checkbox-row">
                     <input
                       type="checkbox"
@@ -1026,7 +1026,7 @@ export default function Trade() {
           {user && (
             <div className="grid">
               {myOffers.length === 0 && <div className="empty">No offers yet.</div>}
-              {myOffers.map((offer) => (
+              {(Array.isArray(myOffers) ? myOffers : []).map((offer) => (
                 <OfferCard key={offer.id} offer={offer} />
               ))}
             </div>
@@ -1043,7 +1043,7 @@ export default function Trade() {
             </div>
             <div className="wallet-actions">
           <select value={fiatFilter} disabled>
-            {fiats.map((f) => (
+            {(Array.isArray(fiats) ? fiats : []).map((f) => (
               <option key={f.code} value={f.code}>
                 {f.code} - {f.name}
               </option>
@@ -1057,7 +1057,7 @@ export default function Trade() {
               <div className="orders-panel">
                 <h4>Buyer Orders</h4>
                 {buyerOrders.length === 0 && <div className="empty">No buyer orders.</div>}
-                {buyerOrders.map((order) => (
+                {(Array.isArray(buyerOrders) ? buyerOrders : []).map((order) => (
                   <div key={order.id} className={`seller-order-card ${order.status === "payment_rejected" ? "seller-order-card--rejected" : ""} ${order.status === "disputed" ? "seller-order-card--disputed" : ""}`}>
 
                     {/* Top row */}
@@ -1114,7 +1114,7 @@ export default function Trade() {
               <div className="orders-panel">
                 <h4>Seller Orders</h4>
                 {sellerOrders.length === 0 && <div className="empty">No seller orders.</div>}
-                {sellerOrders.map((order) => (
+                {(Array.isArray(sellerOrders) ? sellerOrders : []).map((order) => (
                   <div key={order.id} className={`seller-order-card ${order.status === "payment_submitted" ? "seller-order-card--alert" : ""}`}>
 
                     {/* ── Top row: token/amount + status ── */}
@@ -1238,7 +1238,7 @@ export default function Trade() {
                   <div className="chat-sidebar">
                     <div className="chat-list">
                       {filteredConversations.length === 0 && <p className="muted">No conversations.</p>}
-                      {filteredConversations.map((c) => (
+                      {(Array.isArray(filteredConversations) ? filteredConversations : []).map((c) => (
                         <button
                           key={c.id}
                           className={`chat-list-item ${activeConversationId === c.id ? "active" : ""}`}
@@ -1275,7 +1275,7 @@ export default function Trade() {
                         <p className="muted">No messages yet.</p>
                       )}
                       {!activeConversationId && <p className="muted">Select a chat to start.</p>}
-                      {activeMessages.map((msg) => {
+                      {(Array.isArray(activeMessages) ? activeMessages : []).map((msg) => {
                         const isSelf = msg.sender_id === user?.id;
                         return (
                           <div key={msg.id} className={`chat-bubble ${isSelf ? "self" : "other"}`}>

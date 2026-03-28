@@ -21,7 +21,7 @@ export default function Home() {
         const catalog = await apiFetch("/admin/public-catalog")
           .then((r) => r.json())
           .catch(() => ({ assets: [] }));
-        const nextTokens = (catalog.assets || []).map((asset) => asset.symbol);
+        const nextTokens = (Array.isArray(catalog.assets) ? catalog.assets : []).map((asset) => asset.symbol);
         const targetTokens = nextTokens.length ? nextTokens : tokens;
         const nextAnnouncements = catalog.announcements || [];
         const nextMetrics = catalog.metrics || {};
@@ -63,7 +63,7 @@ export default function Home() {
       {announcements.length > 0 && (
         <div className="announcement-banner">
           <div className="announcement-track">
-            {announcements.concat(announcements).map((item, idx) => (
+            {(Array.isArray(announcements) ? announcements : []).concat(Array.isArray(announcements) ? announcements : []).map((item, idx) => (
               <span key={`${item.id}-${idx}`} className="announcement-item">
                 {item.message}
               </span>
@@ -84,7 +84,7 @@ export default function Home() {
           <h3>Market Prices</h3>
           {error && <p className="error">{error}</p>}
           <div className="price-list">
-            {tokens.map((t) => (
+            {(Array.isArray(tokens) ? tokens : []).map((t) => (
               <div key={t} className="price-row">
                 <span>{t}</span>
                 <span>{prices[t] ? `$${prices[t]}` : "-"}</span>

@@ -1,4 +1,4 @@
-export function HistoryTable({ title, rows, columns }) {
+export function HistoryTable({ title, rows = [], columns = [] }) {
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -34,20 +34,20 @@ export function HistoryTable({ title, rows, columns }) {
       <h3>{title}</h3>
       <div className="market-table">
         <div className="market-row market-head">
-          {columns.map((c) => (
+          {(Array.isArray(columns) ? columns : []).map((c) => (
             <span key={c}>{c}</span>
           ))}
         </div>
-        {rows.length === 0 && (
+        {(Array.isArray(rows) ? rows : []).length === 0 && (
           <div className="market-row">
             <span className="muted">No records</span>
             <span></span>
             <span></span>
           </div>
         )}
-        {rows.map((r, idx) => (
+        {(Array.isArray(rows) ? rows : []).map((r, idx) => (
           <div className="market-row" key={r.id || idx}>
-            {columns.map((c) => (
+            {(Array.isArray(columns) ? columns : []).map((c) => (
               <span key={c}>{renderCell(r, c)}</span>
             ))}
           </div>

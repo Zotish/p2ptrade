@@ -36,8 +36,8 @@ export default function Wallets() {
       .then((data) => {
         const depositAssetList = data.depositAssets || [];
         const withdrawalList = data.withdrawalAssets || [];
-        setDepositAssets(depositAssetList);
-        setWithdrawAssets(withdrawalList);
+        setDepositAssets(Array.isArray(depositAssetList) ? depositAssetList : []);
+        setWithdrawAssets(Array.isArray(withdrawalList) ? withdrawalList : []);
         if (depositAssetList.length) {
           setDepositSelection((prev) =>
             depositAssetList.some((item) => item.id === prev) ? prev : depositAssetList[0].id
@@ -69,7 +69,7 @@ export default function Wallets() {
         return data;
       })
       .then((data) => {
-        setWallets(data.addresses || []);
+        setWallets(Array.isArray(data.addresses) ? data.addresses : []);
         setWalletError("");
       })
       .catch((err) => {
@@ -97,9 +97,9 @@ export default function Wallets() {
         ]);
 
         if (!active) return;
-        if (balancesRes.ok) setBalances(balancesData.balances || {});
-        if (depositsRes.ok) setDeposits(depositsData.deposits || []);
-        if (withdrawalsRes.ok) setWithdrawals(withdrawalsData.withdrawals || []);
+        if (balancesRes.ok) setBalances(balancesData.balances && typeof balancesData.balances === "object" && !Array.isArray(balancesData.balances) ? balancesData.balances : {});
+        if (depositsRes.ok) setDeposits(Array.isArray(depositsData.deposits) ? depositsData.deposits : []);
+        if (withdrawalsRes.ok) setWithdrawals(Array.isArray(withdrawalsData.withdrawals) ? withdrawalsData.withdrawals : []);
       } catch {
         // ignore transient polling failures
       }
@@ -213,7 +213,7 @@ export default function Wallets() {
                 }
               }}
             >
-              {depositAssets.map((asset) => (
+              {(Array.isArray(depositAssets) ? depositAssets : []).map((asset) => (
                 <option key={asset.id} value={asset.id}>
                   {asset.symbol} ({asset.chain_name || asset.chain_code})
                 </option>
@@ -235,7 +235,7 @@ export default function Wallets() {
         )}
 
         <div className="wallet-list">
-          {wallets.map((w) => (
+          {(Array.isArray(wallets) ? wallets : []).map((w) => (
             <div className="wallet-item" key={w.id}>
               <div>
                 <p className="wallet-chain">{w.chain}</p>
@@ -257,7 +257,7 @@ export default function Wallets() {
             <span>Balance</span>
             <span></span>
           </div>
-          {withdrawAssets.map((asset) => (
+          {(Array.isArray(withdrawAssets) ? withdrawAssets : []).map((asset) => (
             <div className="market-row" key={asset.id}>
               <span>{asset.symbol}</span>
               <span>{balances[asset.symbol] || 0}</span>
@@ -298,7 +298,7 @@ export default function Wallets() {
                 setWithdrawStatus("");
               }}
             >
-              {withdrawAssets.map((asset) => (
+              {(Array.isArray(withdrawAssets) ? withdrawAssets : []).map((asset) => (
                 <option key={asset.id} value={asset.symbol}>
                   {asset.symbol}
                 </option>
