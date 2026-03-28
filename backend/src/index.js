@@ -48,6 +48,7 @@ const app = express();
 const httpServer = createServer(app);
 
 app.set("etag", false);
+app.set("trust proxy", 1); // Railway/Netlify proxy-এর পেছনে আছে
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
