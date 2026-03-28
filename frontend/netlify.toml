@@ -1,12 +1,11 @@
 [build]
-  base    = "."
+  base    = "frontend"
   command = "npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# React Router — সব route index.html-এ redirect করবে
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
