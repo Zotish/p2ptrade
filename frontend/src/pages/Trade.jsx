@@ -688,7 +688,7 @@ export default function Trade() {
                   }}
                 >
                   <option value="">Select method</option>
-                  {(activeOffer.payment_methods || []).map((m) => (
+                  {(Array.isArray(activeOffer.payment_methods) ? activeOffer.payment_methods : typeof activeOffer.payment_methods === "string" ? (() => { try { return JSON.parse(activeOffer.payment_methods); } catch { return activeOffer.payment_methods.split(",").map(s => s.trim()).filter(Boolean); } })() : []).map((m) => (
                     <option key={m} value={m}>
                       {m.replace("_", " ")}
                     </option>

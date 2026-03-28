@@ -21,7 +21,12 @@ export function OfferCard({
   const priceFiat    = offer.price_fiat ?? offer.priceFiat ?? offer.pricePerToken ?? offer.price_usd;
   const minAmount    = offer.min_amount ?? offer.minAmount;
   const maxAmount    = offer.max_amount ?? offer.maxAmount;
-  const paymentMethods = offer.payment_methods ?? offer.paymentMethods ?? [];
+  const _pm = offer.payment_methods ?? offer.paymentMethods ?? [];
+  const paymentMethods = Array.isArray(_pm)
+    ? _pm
+    : typeof _pm === "string"
+      ? (() => { try { return JSON.parse(_pm); } catch { return _pm.split(",").map(s => s.trim()).filter(Boolean); } })()
+      : [];
   const stats        = offer.sellerStats;
 
   return (

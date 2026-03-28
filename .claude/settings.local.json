@@ -28,7 +28,12 @@
       "Bash(npm run:*)",
       "Bash(pkill -f \"ngrok\")",
       "Bash(curl -sv \"http://localhost:4000/admin/public-catalog\")",
-      "Bash(python3 -m json.tool)"
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s https://railway.app/api/projects/078e355f-fc7c-412f-9633-3d0432f85cb1)",
+      "Bash(echo \"VITE_API_URL=https://p2ptrade-production.up.railway.app:*)",
+      "Bash(curl -s \"https://p2ptrade-production.up.railway.app/health\")",
+      "Bash(curl -s --max-time 15 \"https://p2ptrade-production.up.railway.app/health\")",
+      "Bash(curl -v --max-time 20 \"https://p2ptrade-production.up.railway.app/health\")"
     ]
   }
 }
