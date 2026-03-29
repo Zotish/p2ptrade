@@ -30,7 +30,7 @@ export default function Signup() {
         setTimeout(() => setDevToast(null), 30_000);
       }
 
-      navigate("/verify", { state: { email } });
+      navigate("/verify", { state: { email, devCode: data.devCode || null } });
     } catch (err) {
       setError(err.message || "Signup failed");
     } finally {
