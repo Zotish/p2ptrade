@@ -113,6 +113,74 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Get the App ─────────────────────────────── */}
+      <section className="get-app">
+        <div className="get-app__text">
+          <p className="kicker">Mobile App</p>
+          <h2>Trade on the go</h2>
+          <p className="sub">Download the P2P Escrow app and trade crypto anywhere, anytime.</p>
+          <div className="get-app__buttons">
+            {/* Android APK */}
+            <a
+              href="https://github.com/Zotish/p2ptrade/releases/latest/download/p2p-escrow.apk"
+              className="app-btn app-btn--android"
+              download
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.523 15.341a.5.5 0 0 1-.848.35l-2.13-2.128a5.5 5.5 0 1 1 .848-.848l2.13 2.127a.5.5 0 0 1 0 .499zM8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+                <path d="M2.114 5.534a1 1 0 0 1 1.372-1.453l3.093 2.92A8.52 8.52 0 0 1 8.5 6.5a8.52 8.52 0 0 1 1.921.5l3.093-2.919a1 1 0 0 1 1.372 1.453L12.27 8.05A8.5 8.5 0 1 1 4.73 8.05L2.114 5.534z"/>
+              </svg>
+              <span>
+                <small>Download for</small>
+                Android APK
+              </span>
+            </a>
+
+            {/* iOS */}
+            <button
+              className="app-btn app-btn--ios"
+              onClick={() => {
+                document.getElementById("ios-guide").style.display =
+                  document.getElementById("ios-guide").style.display === "none" ? "block" : "none";
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+              </svg>
+              <span>
+                <small>Install on</small>
+                iPhone / iPad
+              </span>
+            </button>
+          </div>
+
+          {/* iOS Guide */}
+          <div id="ios-guide" style={{ display: "none" }} className="ios-guide">
+            <p>📱 <strong>iPhone-এ Install করো:</strong></p>
+            <ol>
+              <li>Safari browser-এ এই site খোলো</li>
+              <li>নিচে <strong>Share</strong> button tap করো (□↑)</li>
+              <li><strong>"Add to Home Screen"</strong> select করো</li>
+              <li><strong>"Add"</strong> tap করো → Done! ✅</li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="get-app__mockup">
+          <div className="phone-frame">
+            <div className="phone-screen">
+              <div className="phone-header">P2P ESCROW</div>
+              <div className="phone-content">
+                <div className="phone-stat">BTC <span>$84,200</span></div>
+                <div className="phone-stat">ETH <span>$1,623</span></div>
+                <div className="phone-stat">SOL <span>$125</span></div>
+                <div className="phone-cta">Trade Now →</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="grid">
         <div className="offer">
           <h4>Project Idea</h4>
