@@ -51,9 +51,6 @@ export default function Wallets() {
           setWithdrawAsset((prev) =>
             withdrawalList.some((item) => item.symbol === prev) ? prev : withdrawalList[0].symbol
           );
-          setCreditAsset((prev) =>
-            withdrawalList.some((item) => item.symbol === prev) ? prev : withdrawalList[0].symbol
-          );
         }
       })
       .catch(() => {});

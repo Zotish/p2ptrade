@@ -4,8 +4,8 @@ import { createOffer, listOffers, listOffersByMaker, getOfferById } from "../rep
 import { requireAuth } from "../auth.js";
 import { get as dbGet } from "../db.js";
 
-function getSellerStats(sellerUserId) {
-  const row = dbGet(
+async function getSellerStats(sellerUserId) {
+  const row = await dbGet(
     `select
       count(*) as total,
       sum(case when o.status = 'released' then 1 else 0 end) as completed,
@@ -26,11 +26,11 @@ function getSellerStats(sellerUserId) {
   return { total, completed, rejected, disputed, completionRate: rate, stars: Number(stars) };
 }
 
-function enrichOffersWithStats(offers) {
-  return offers.map((offer) => ({
+async function enrichOffersWithStats(offers) {
+  return Promise.all(offers.map(async (offer) => ({
     ...offer,
-    sellerStats: getSellerStats(offer.maker_user_id)
-  }));
+    sellerStats: await getSellerStats(offer.maker_user_id)
+  })));
 }
 
 export const offersRouter = Router();
@@ -43,7 +43,7 @@ offersRouter.get("/", async (req, res) => {
     const fx = await getFxRates();
     const rate = fiat && fiat !== "USD" ? fx[fiat] : 1;
     res.set("Cache-Control", "no-store");
-    res.json({ price, offers: enrichOffersWithStats(offers), fxRate: rate || null });
+    res.json({ price, offers: await enrichOffersWithStats(offers), fxRate: rate || null });
   } catch (error) {
     res.set("Cache-Control", "no-store");
     res.status(502).json({ error: error.message });
@@ -51,20 +51,28 @@ offersRouter.get("/", async (req, res) => {
 });
 
 offersRouter.get("/mine", requireAuth, async (req, res) => {
-  const { country, token, fiat } = req.query;
-  const offers = await listOffersByMaker({
-    makerUserId: req.user.id,
-    country,
-    token,
-    fiat
-  });
-  res.json({ offers });
+  try {
+    const { country, token, fiat } = req.query;
+    const offers = await listOffersByMaker({
+      makerUserId: req.user.id,
+      country,
+      token,
+      fiat
+    });
+    res.json({ offers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 offersRouter.get("/:id", requireAuth, async (req, res) => {
-  const offer = await getOfferById(req.params.id);
-  if (!offer) return res.status(404).json({ error: "Offer not found" });
-  res.json({ offer });
+  try {
+    const offer = await getOfferById(req.params.id);
+    if (!offer) return res.status(404).json({ error: "Offer not found" });
+    res.json({ offer });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 offersRouter.post("/", requireAuth, async (req, res) => {

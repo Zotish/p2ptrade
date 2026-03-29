@@ -64,32 +64,40 @@ adminRouter.get("/public-catalog", async (req, res) => {
 adminRouter.use(requireAdmin);
 
 adminRouter.get("/catalog", async (req, res) => {
-  const [chains, assets, users, pendingWithdrawals, fiats, countries, announcements, paymentProviders] = await Promise.all([
-    listChains(),
-    listAssets(),
-    listUsers(),
-    listPendingWithdrawals(),
-    listFiats(false),
-    listCountries(false),
-    listAnnouncements(),
-    listPaymentProviders()
-  ]);
-  res.json({ chains, assets, users, pendingWithdrawals, fiats, countries, announcements, paymentProviders });
+  try {
+    const [chains, assets, users, pendingWithdrawals, fiats, countries, announcements, paymentProviders] = await Promise.all([
+      listChains(),
+      listAssets(),
+      listUsers(),
+      listPendingWithdrawals(),
+      listFiats(false),
+      listCountries(false),
+      listAnnouncements(),
+      listPaymentProviders()
+    ]);
+    res.json({ chains, assets, users, pendingWithdrawals, fiats, countries, announcements, paymentProviders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 adminRouter.get("/health", async (req, res) => {
-  const chains = await listChains();
-  const statuses = await Promise.all(
-    chains.map(async (chain) => ({
-      code: chain.code,
-      name: chain.name,
-      kind: chain.kind,
-      network: chain.network,
-      endpoints: parseRpcUrls(chain),
-      checks: await checkChainHealth(chain)
-    }))
-  );
-  res.json({ statuses });
+  try {
+    const chains = await listChains();
+    const statuses = await Promise.all(
+      chains.map(async (chain) => ({
+        code: chain.code,
+        name: chain.name,
+        kind: chain.kind,
+        network: chain.network,
+        endpoints: parseRpcUrls(chain),
+        checks: await checkChainHealth(chain)
+      }))
+    );
+    res.json({ statuses });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 adminRouter.get("/treasury", async (req, res) => {
@@ -105,7 +113,7 @@ adminRouter.post("/announcements", async (req, res) => {
   const { message, startsAt, endsAt, isActive } = req.body || {};
   if (!message) return res.status(400).json({ error: "Message required" });
   try {
-    const announcement = createAnnouncement({ message, startsAt, endsAt, isActive });
+    const announcement = await createAnnouncement({ message, startsAt, endsAt, isActive });
     res.status(201).json({ announcement });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -115,7 +123,7 @@ adminRouter.post("/announcements", async (req, res) => {
 adminRouter.patch("/announcements/:id", async (req, res) => {
   try {
     const fields = mapAnnouncementFields(req.body || {});
-    const announcement = updateAnnouncement(req.params.id, fields);
+    const announcement = await updateAnnouncement(req.params.id, fields);
     res.json({ announcement });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -124,7 +132,7 @@ adminRouter.patch("/announcements/:id", async (req, res) => {
 
 adminRouter.delete("/announcements/:id", async (req, res) => {
   try {
-    deleteAnnouncement(req.params.id);
+    await deleteAnnouncement(req.params.id);
     res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -137,7 +145,7 @@ adminRouter.post("/payment-providers", async (req, res) => {
     return res.status(400).json({ error: "countryCode, method, and name required" });
   }
   try {
-    const provider = createPaymentProvider({
+    const provider = await createPaymentProvider({
       countryCode,
       method,
       name,
@@ -153,7 +161,7 @@ adminRouter.post("/payment-providers", async (req, res) => {
 adminRouter.patch("/payment-providers/:id", async (req, res) => {
   try {
     const fields = mapPaymentProviderFields(req.body || {});
-    const provider = updatePaymentProvider(req.params.id, fields);
+    const provider = await updatePaymentProvider(req.params.id, fields);
     res.json({ provider });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -162,7 +170,7 @@ adminRouter.patch("/payment-providers/:id", async (req, res) => {
 
 adminRouter.delete("/payment-providers/:id", async (req, res) => {
   try {
-    deletePaymentProvider(req.params.id);
+    await deletePaymentProvider(req.params.id);
     res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -362,11 +370,11 @@ adminRouter.patch("/assets/:id", async (req, res) => {
 adminRouter.post("/users/:id/freeze", requireAdmin, async (req, res) => {
   const { reason } = req.body || {};
   try {
-    run(
+    await run(
       "update users set is_frozen = 1, freeze_reason = ? where id = ?",
       [reason || "Suspended by admin", req.params.id]
     );
-    const user = get("select id, email, is_frozen, freeze_reason from users where id = ?", [req.params.id]);
+    const user = await get("select id, email, is_frozen, freeze_reason from users where id = ?", [req.params.id]);
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -375,8 +383,8 @@ adminRouter.post("/users/:id/freeze", requireAdmin, async (req, res) => {
 
 adminRouter.post("/users/:id/unfreeze", requireAdmin, async (req, res) => {
   try {
-    run("update users set is_frozen = 0, freeze_reason = null where id = ?", [req.params.id]);
-    const user = get("select id, email, is_frozen from users where id = ?", [req.params.id]);
+    await run("update users set is_frozen = 0, freeze_reason = null where id = ?", [req.params.id]);
+    const user = await get("select id, email, is_frozen from users where id = ?", [req.params.id]);
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -397,8 +405,12 @@ adminRouter.patch("/users/:id/role", async (req, res) => {
 });
 
 adminRouter.get("/withdrawals/pending", async (req, res) => {
-  const withdrawals = await listPendingWithdrawals();
-  res.json({ withdrawals });
+  try {
+    const withdrawals = await listPendingWithdrawals();
+    res.json({ withdrawals });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 adminRouter.post("/withdrawals/:id/approve", async (req, res) => {
@@ -437,7 +449,7 @@ import { emitToUser } from "../socket.js";
 // GET /admin/disputes — all disputed orders
 adminRouter.get("/disputes", requireAdmin, async (req, res) => {
   try {
-    const disputes = dbAllTop(
+    const disputes = await dbAllTop(
       `select o.*,
               of.token          as offer_token,
               of.fiat           as offer_fiat,
