@@ -19,6 +19,13 @@ import Security from "./pages/Security.jsx";
 import { AuthProvider } from "./authContext.jsx";
 import { SocketProvider } from "./socketContext.jsx";
 
+// Service Worker register
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>

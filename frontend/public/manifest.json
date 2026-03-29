@@ -1,0 +1,45 @@
+{
+  "name": "P2P Escrow",
+  "short_name": "P2P Escrow",
+  "description": "Safe peer-to-peer crypto trading with escrow protection",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1015",
+  "theme_color": "#f4b740",
+  "categories": ["finance", "crypto"],
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Market",
+      "url": "/market",
+      "description": "Browse crypto offers"
+    },
+    {
+      "name": "Trade",
+      "url": "/trade",
+      "description": "Buy & sell crypto"
+    },
+    {
+      "name": "Wallets",
+      "url": "/wallets",
+      "description": "Manage your wallets"
+    }
+  ]
+}
