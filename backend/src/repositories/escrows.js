@@ -13,7 +13,7 @@ export async function createEscrow({ offerId, sellerUserId, buyerUserId, token, 
 }
 
 export async function updateEscrowStatus(id, status) {
-  await run("update escrows set status = ?, updated_at = datetime('now') where id = ?", [status, id]);
+  await run("update escrows set status = ?, updated_at = CURRENT_TIMESTAMP where id = ?", [status, id]);
   return getEscrowById(id);
 }
 

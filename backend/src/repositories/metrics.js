@@ -3,8 +3,8 @@ import { get } from "../db.js";
 export async function getUserCounts(windowMinutes = 10) {
   const totalRow = await get("select count(*) as total from users", []);
   const liveRow = await get(
-    "select count(*) as live from users where last_seen_at >= datetime('now', ?)",
-    [`-${windowMinutes} minutes`]
+    `select count(*) as live from users where last_seen_at >= (CURRENT_TIMESTAMP - INTERVAL '${windowMinutes} minutes')`,
+    []
   );
   return {
     total: Number(totalRow?.total || 0),

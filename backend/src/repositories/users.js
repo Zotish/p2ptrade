@@ -41,7 +41,7 @@ export async function updateUserProfile(id, { handle, phone, profileName, profil
 }
 
 export async function updateUserLastSeen(id) {
-  await run("update users set last_seen_at = datetime('now') where id = ?", [id]);
+  await run("update users set last_seen_at = CURRENT_TIMESTAMP where id = ?", [id]);
 }
 
 export async function updateUserPassword(id, passwordHash) {

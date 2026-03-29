@@ -9,8 +9,8 @@ export async function listActiveAnnouncements() {
   return all(
     `select * from admin_announcements
      where is_active = 1
-       and (starts_at is null or starts_at <= datetime('now'))
-       and (ends_at is null or ends_at >= datetime('now'))
+       and (starts_at is null or starts_at <= CURRENT_TIMESTAMP)
+       and (ends_at is null or ends_at >= CURRENT_TIMESTAMP)
      order by created_at desc`,
     []
   );

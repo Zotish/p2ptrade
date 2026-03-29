@@ -8,8 +8,8 @@ export async function getPlatformFee(asset) {
 export async function addPlatformFee(asset, amount) {
   await run(
     `insert into platform_fees (asset, amount, updated_at)
-     values (?,?,datetime('now'))
-     on conflict(asset) do update set amount = amount + excluded.amount, updated_at = datetime('now')`,
+     values (?,?,CURRENT_TIMESTAMP)
+     on conflict(asset) do update set amount = amount + excluded.amount, updated_at = CURRENT_TIMESTAMP`,
     [asset, amount]
   );
   return getPlatformFee(asset);

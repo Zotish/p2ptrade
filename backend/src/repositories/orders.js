@@ -23,7 +23,7 @@ export async function createOrder({
 
 export async function updateOrderStatus(id, status, extra = {}) {
   // build SET clause; updated_at uses raw SQL so handle separately
-  const setClauses = ["status = ?", "updated_at = datetime('now')"];
+  const setClauses = ["status = ?", "updated_at = CURRENT_TIMESTAMP"];
   const values = [status];
   for (const [k, v] of Object.entries(extra)) {
     setClauses.push(`${k} = ?`);
@@ -38,7 +38,7 @@ export async function updateOrderFee(id, fields) {
   if (!keys.length) return getOrderById(id);
   const setClause = keys.map((k) => `${k} = ?`).join(", ");
   const values = keys.map((k) => fields[k]);
-  await run(`update orders set ${setClause}, updated_at = datetime('now') where id = ?`, [...values, id]);
+  await run(`update orders set ${setClause}, updated_at = CURRENT_TIMESTAMP where id = ?`, [...values, id]);
   return getOrderById(id);
 }
 
@@ -50,7 +50,7 @@ export async function findExpiredOrders() {
   return all(
     `select * from orders
      where status in ('awaiting_payment','payment_confirmed')
-       and expires_at <= datetime('now')`
+       and expires_at <= CURRENT_TIMESTAMP`
   );
 }
 
@@ -60,6 +60,6 @@ export async function findExpiredRejections() {
     `select * from orders
      where status = 'payment_rejected'
        and rejected_at is not null
-       and rejected_at <= datetime('now', '-24 hours')`
+       and rejected_at <= (CURRENT_TIMESTAMP - INTERVAL '24 hours')`
   );
 }
