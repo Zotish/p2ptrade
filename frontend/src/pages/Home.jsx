@@ -122,7 +122,7 @@ export default function Home() {
           <div className="get-app__buttons">
             {/* Android APK */}
             <a
-              href="https://github.com/Zotish/p2ptrade/releases/latest/download/p2p-escrow.apk"
+              href="https://github.com/Zotish/p2ptrade/releases/download/p2pTrade/app-release.apk"
               className="app-btn app-btn--android"
               download
             >
