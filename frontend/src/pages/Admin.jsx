@@ -97,6 +97,7 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [chainForm, setChainForm] = useState(EMPTY_CHAIN);
+  const [rpcEdit, setRpcEdit] = useState(null); // { id, rpcUrl, rpcUrls }
   const [assetForm, setAssetForm] = useState(EMPTY_ASSET);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
   const [health, setHealth] = useState([]);
@@ -1107,14 +1108,86 @@ export default function Admin() {
             <span>Status</span>
           </div>
           {(Array.isArray(chains) ? chains : []).map((chain) => (
-            <div className="market-row" key={chain.id}>
-              <span>{chain.code} - {chain.name}</span>
-              <span>{chain.kind} / {chain.network}</span>
-              <span>
-                <button className="ghost" onClick={() => toggleChain(chain)}>
-                  {chain.is_active ? "Disable" : "Enable"}
-                </button>
-              </span>
+            <div key={chain.id}>
+              <div className="market-row">
+                <span>{chain.code} — {chain.name}</span>
+                <span>{chain.kind} / {chain.network}</span>
+                <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="ghost" onClick={() => toggleChain(chain)}>
+                    {chain.is_active ? "Disable" : "Enable"}
+                  </button>
+                  <button
+                    className="ghost"
+                    onClick={() =>
+                      setRpcEdit(rpcEdit?.id === chain.id ? null : {
+                        id: chain.id,
+                        rpcUrl:  chain.rpc_url  || "",
+                        rpcUrls: chain.rpc_urls || ""
+                      })
+                    }
+                  >
+                    {rpcEdit?.id === chain.id ? "Cancel" : "Edit RPC"}
+                  </button>
+                </span>
+              </div>
+
+              {/* ── Inline RPC Edit Form ── */}
+              {rpcEdit?.id === chain.id && (
+                <div style={{
+                  background: "#12141e", border: "1px solid #2b2f3b",
+                  borderRadius: 10, padding: "16px 20px", margin: "4px 0 8px",
+                  display: "flex", flexDirection: "column", gap: 10
+                }}>
+                  <div style={{ color: "#f4b740", fontWeight: 700, fontSize: 13 }}>
+                    🔗 {chain.code} RPC Settings
+                  </div>
+                  <label style={{ fontSize: 13, color: "#8f95a3" }}>
+                    Primary RPC URL
+                    <input
+                      style={{ marginTop: 4 }}
+                      value={rpcEdit.rpcUrl}
+                      onChange={(e) => setRpcEdit((s) => ({ ...s, rpcUrl: e.target.value }))}
+                      placeholder="https://mainnet.infura.io/v3/..."
+                    />
+                  </label>
+                  <label style={{ fontSize: 13, color: "#8f95a3" }}>
+                    Fallback RPC URLs (comma separated)
+                    <input
+                      style={{ marginTop: 4 }}
+                      value={rpcEdit.rpcUrls}
+                      onChange={(e) => setRpcEdit((s) => ({ ...s, rpcUrls: e.target.value }))}
+                      placeholder="https://rpc1.com,https://rpc2.com"
+                    />
+                  </label>
+
+                  {/* Current URLs preview */}
+                  {(chain.rpc_urls || chain.rpc_url) && (
+                    <div style={{ fontSize: 11, color: "#4a4f5e" }}>
+                      Current: {chain.rpc_urls || chain.rpc_url}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="cta"
+                      style={{ flex: 1 }}
+                      onClick={async () => {
+                        await patchChain(chain.id, {
+                          rpcUrl:  rpcEdit.rpcUrl,
+                          rpcUrls: rpcEdit.rpcUrls
+                        });
+                        setRpcEdit(null);
+                        setStatus(`✅ ${chain.code} RPC updated!`);
+                      }}
+                    >
+                      Save RPC
+                    </button>
+                    <button className="ghost" onClick={() => setRpcEdit(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
