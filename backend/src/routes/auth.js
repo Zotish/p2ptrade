@@ -80,8 +80,9 @@ authRouter.post("/signup", signupLimiter, async (req, res) => {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await setVerification({ userId: user.id, code, expiresAt });
-  await sendVerificationEmail({ email, code });
+  const emailResult = await sendVerificationEmail({ email, code });
   res.status(201).json({
+    ...(emailResult?.dev && { devCode: code }),  // dev fallback হলে code পাঠাও
     user: {
       id: user.id,
       email: user.email,
