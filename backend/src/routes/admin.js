@@ -19,6 +19,7 @@ import { approveWithdrawal, rejectWithdrawal, adminTreasuryWithdraw } from "../s
 import { getTreasurySnapshot } from "../services/treasury.js";
 import { detectChainFromRpc } from "../services/chainDetect.js";
 import { listAnnouncements, listActiveAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from "../repositories/announcements.js";
+import { logAudit, listAuditLog } from "../repositories/auditLog.js";
 import { getUserCounts, getTradeVolumeUsd } from "../repositories/metrics.js";
 import {
   listPaymentProviders,
@@ -185,6 +186,13 @@ adminRouter.post("/treasury/withdraw", async (req, res) => {
       asset: String(asset || "").toUpperCase(),
       amount: Number(amount),
       toAddress
+    });
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "treasury_withdraw",
+      targetType: "treasury",
+      meta: { asset, amount, toAddress, txid: result.txid },
+      ip: req.ip
     });
     res.json({ result });
   } catch (error) {
@@ -375,6 +383,13 @@ adminRouter.post("/users/:id/freeze", requireAdmin, async (req, res) => {
       [reason || "Suspended by admin", req.params.id]
     );
     const user = await get("select id, email, is_frozen, freeze_reason from users where id = ?", [req.params.id]);
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "freeze_user",
+      targetId: req.params.id, targetType: "user",
+      meta: { reason: reason || "Suspended by admin", userEmail: user?.email },
+      ip: req.ip
+    });
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -385,6 +400,13 @@ adminRouter.post("/users/:id/unfreeze", requireAdmin, async (req, res) => {
   try {
     await run("update users set is_frozen = 0, freeze_reason = null where id = ?", [req.params.id]);
     const user = await get("select id, email, is_frozen from users where id = ?", [req.params.id]);
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "unfreeze_user",
+      targetId: req.params.id, targetType: "user",
+      meta: { userEmail: user?.email },
+      ip: req.ip
+    });
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -419,6 +441,13 @@ adminRouter.post("/withdrawals/:id/approve", async (req, res) => {
       withdrawalId: req.params.id,
       adminUserId: req.user.id
     });
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "approve_withdrawal",
+      targetId: req.params.id, targetType: "withdrawal",
+      meta: { asset: withdrawal.asset, amount: withdrawal.amount, userId: withdrawal.user_id, txid: withdrawal.txid },
+      ip: req.ip
+    });
     res.json({ withdrawal });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -431,6 +460,13 @@ adminRouter.post("/withdrawals/:id/reject", async (req, res) => {
       withdrawalId: req.params.id,
       adminUserId: req.user.id,
       reason: req.body?.reason
+    });
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "reject_withdrawal",
+      targetId: req.params.id, targetType: "withdrawal",
+      meta: { reason: req.body?.reason, asset: withdrawal.asset, amount: withdrawal.amount, userId: withdrawal.user_id },
+      ip: req.ip
     });
     res.json({ withdrawal });
   } catch (error) {
@@ -507,6 +543,14 @@ adminRouter.post("/disputes/:id/release", requireAdmin, async (req, res) => {
       message: "Admin reviewed the dispute and sided with the buyer."
     });
 
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "resolve_dispute_release",
+      targetId: order.id, targetType: "order",
+      meta: { note: req.body?.note, token: offer?.token, amount: order.amount_token },
+      ip: req.ip
+    });
+
     res.json({ order: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -540,6 +584,14 @@ adminRouter.post("/disputes/:id/refund", requireAdmin, async (req, res) => {
       message: "Dispute resolved. Your crypto has been returned."
     });
 
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "resolve_dispute_refund",
+      targetId: order.id, targetType: "order",
+      meta: { note: req.body?.note, token: offer?.token, amount: order.amount_token },
+      ip: req.ip
+    });
+
     res.json({ order: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -567,6 +619,18 @@ function mapPaymentProviderFields(body) {
   if (body.isActive !== undefined) out.is_active = body.isActive ? 1 : 0;
   return out;
 }
+
+// ── Audit Log ──────────────────────────────────────────────────────
+adminRouter.get("/audit-log", requireAdmin, async (req, res) => {
+  try {
+    const limit  = Math.min(Number(req.query.limit  || 100), 500);
+    const offset = Number(req.query.offset || 0);
+    const logs   = await listAuditLog({ limit, offset, action: req.query.action });
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 function mapAssetFields(body) {
   const out = {};

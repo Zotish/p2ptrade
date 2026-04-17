@@ -21,10 +21,71 @@ export default function Wallets() {
   const [feeLoading, setFeeLoading]         = useState(false);
   const [deposits, setDeposits] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [totpEnabled, setTotpEnabled]       = useState(false);
+  const [withdrawTotpCode, setWithdrawTotpCode] = useState("");
+
+  // Whitelist state
+  const [whitelist, setWhitelist]           = useState([]);
+  const [wlChain, setWlChain]               = useState("BTC");
+  const [wlAddress, setWlAddress]           = useState("");
+  const [wlLabel, setWlLabel]               = useState("");
+  const [wlTotpCode, setWlTotpCode]         = useState("");
+  const [wlStatus, setWlStatus]             = useState("");
+  const [wlLoading, setWlLoading]           = useState(false);
 
   const selectedWithdrawAsset = withdrawAssets.find((item) => item.symbol === withdrawAsset);
   const pendingWithdrawals = withdrawals.filter((item) => item.status === "pending_approval");
   const sentWithdrawals = withdrawals.filter((item) => item.status === "sent");
+
+  // ── Fetch 2FA status + whitelist ────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    apiFetch("/2fa/status")
+      .then((r) => r.json())
+      .then((data) => setTotpEnabled(!!data.enabled))
+      .catch(() => {});
+    loadWhitelist();
+  }, [user]);
+
+  function loadWhitelist() {
+    apiFetch("/wallets/whitelist")
+      .then((r) => r.json())
+      .then((data) => setWhitelist(Array.isArray(data.whitelist) ? data.whitelist : []))
+      .catch(() => {});
+  }
+
+  async function addToWhitelist() {
+    if (!wlChain || !wlAddress.trim()) return setWlStatus("Chain and address required.");
+    setWlLoading(true);
+    setWlStatus("");
+    try {
+      const body = { chain: wlChain, address: wlAddress.trim(), label: wlLabel.trim() };
+      if (totpEnabled) body.totpCode = wlTotpCode.trim();
+      const res = await apiFetch("/wallets/whitelist", { method: "POST", body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add");
+      setWlAddress(""); setWlLabel(""); setWlTotpCode("");
+      loadWhitelist();
+      setWlStatus("Address added to whitelist.");
+    } catch (err) {
+      setWlStatus(err.message || "Failed to add address");
+    } finally {
+      setWlLoading(false);
+    }
+  }
+
+  async function removeFromWhitelist(id) {
+    setWlStatus("");
+    try {
+      const body = totpEnabled ? { totpCode: prompt("Enter your 2FA code to remove:") } : {};
+      const res = await apiFetch(`/wallets/whitelist/${id}`, { method: "DELETE", body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to remove");
+      loadWhitelist();
+    } catch (err) {
+      setWlStatus(err.message || "Failed to remove");
+    }
+  }
 
   useEffect(() => {
     apiFetch("/wallets/catalog")
@@ -149,19 +210,27 @@ export default function Wallets() {
 
   async function submitWithdraw() {
     setWithdrawStatus("");
+    if (totpEnabled && !withdrawTotpCode.trim()) {
+      setWithdrawStatus("2FA code required. Open Google Authenticator and enter the code.");
+      return;
+    }
     try {
+      const body = {
+        chain: selectedWithdrawAsset?.chain_code || "BNB",
+        asset: withdrawAsset,
+        toAddress: withdrawTo,
+        amount: Number(withdrawAmount)
+      };
+      if (totpEnabled) body.totpCode = withdrawTotpCode.trim();
+
       const res = await apiFetch("/wallets/withdraw", {
         method: "POST",
-        body: JSON.stringify({
-          chain: selectedWithdrawAsset?.chain_code || "BNB",
-          asset: withdrawAsset,
-          toAddress: withdrawTo,
-          amount: Number(withdrawAmount)
-        })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Withdrawal failed");
       setWithdrawStatus("Withdrawal request submitted. Waiting for admin approval.");
+      setWithdrawTotpCode("");
     } catch (err) {
       setWithdrawStatus(err.message || "Withdrawal failed");
     }
@@ -360,18 +429,55 @@ export default function Wallets() {
           {/* To Address */}
           <label>
             To Address
+            {/* Whitelist shortcut — whitelisted addresses for this chain */}
+            {whitelist.filter((w) => w.chain === (selectedWithdrawAsset?.chain_code || withdrawAsset)).length > 0 && (
+              <select
+                style={{ marginBottom: 6 }}
+                value={withdrawTo}
+                onChange={(e) => setWithdrawTo(e.target.value)}
+              >
+                <option value="">— Select from whitelist or type below —</option>
+                {whitelist
+                  .filter((w) => w.chain === (selectedWithdrawAsset?.chain_code || withdrawAsset))
+                  .map((w) => (
+                    <option key={w.id} value={w.address}>
+                      {w.label ? `${w.label} — ` : ""}{w.address.slice(0, 16)}...{w.address.slice(-8)}
+                    </option>
+                  ))}
+              </select>
+            )}
             <input
               placeholder="Paste destination wallet address"
               value={withdrawTo}
               onChange={(e) => setWithdrawTo(e.target.value)}
             />
           </label>
+
+          {/* 2FA Code — only shown when 2FA is enabled */}
+          {totpEnabled && (
+            <label>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                🔐 Google Authenticator Code
+                <span className="status-badge status-completed" style={{ fontSize: 11 }}>2FA ON</span>
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6-digit code"
+                value={withdrawTotpCode}
+                onChange={(e) => setWithdrawTotpCode(e.target.value.replace(/\D/g, ""))}
+                style={{ letterSpacing: 6, fontSize: 20, textAlign: "center" }}
+                autoComplete="one-time-code"
+              />
+            </label>
+          )}
         </div>
 
         <button
           className="cta"
           onClick={submitWithdraw}
-          disabled={!withdrawAmount || !withdrawTo}
+          disabled={!withdrawAmount || !withdrawTo || (totpEnabled && withdrawTotpCode.length !== 6)}
         >
           Withdraw
         </button>
@@ -381,6 +487,89 @@ export default function Wallets() {
           </p>
         )}
         <p className="muted small">All withdrawals require admin approval before on-chain broadcast.</p>
+      </div>
+
+      {/* ── Withdrawal Address Whitelist ──────────────────────── */}
+      <div className="wallet-card">
+        <p className="kicker">Security</p>
+        <h3>Trusted Withdrawal Addresses</h3>
+        <p className="muted small">Save your frequently-used addresses here. They'll appear as quick-select options when withdrawing.</p>
+
+        {/* Existing whitelist */}
+        {whitelist.length > 0 && (
+          <div className="wallet-list" style={{ marginBottom: 16 }}>
+            {whitelist.map((w) => (
+              <div className="wallet-item" key={w.id} style={{ justifyContent: "space-between" }}>
+                <div>
+                  <p className="wallet-chain">{w.chain}{w.label ? ` — ${w.label}` : ""}</p>
+                  <p className="wallet-address" style={{ fontSize: 12 }}>{w.address}</p>
+                </div>
+                <button
+                  className="ghost"
+                  style={{ fontSize: 12, padding: "4px 10px", color: "var(--red)" }}
+                  onClick={() => removeFromWhitelist(w.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new address */}
+        <div className="pay-grid">
+          <label>
+            Chain
+            <select value={wlChain} onChange={(e) => setWlChain(e.target.value)}>
+              {(Array.isArray(withdrawAssets) ? withdrawAssets : []).map((a) => (
+                <option key={a.chain_code} value={a.chain_code}>{a.chain_code}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Address
+            <input
+              placeholder="Wallet address to whitelist"
+              value={wlAddress}
+              onChange={(e) => setWlAddress(e.target.value)}
+            />
+          </label>
+          <label>
+            Label (optional)
+            <input
+              placeholder="e.g. My Binance"
+              value={wlLabel}
+              onChange={(e) => setWlLabel(e.target.value)}
+            />
+          </label>
+          {totpEnabled && (
+            <label>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                🔐 2FA Code
+                <span className="status-badge status-completed" style={{ fontSize: 11 }}>Required</span>
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={wlTotpCode}
+                onChange={(e) => setWlTotpCode(e.target.value.replace(/\D/g, ""))}
+                style={{ letterSpacing: 6, fontSize: 18, textAlign: "center" }}
+              />
+            </label>
+          )}
+        </div>
+        <button
+          className="cta"
+          onClick={addToWhitelist}
+          disabled={wlLoading || !wlAddress.trim() || (totpEnabled && wlTotpCode.length !== 6)}
+        >
+          {wlLoading ? "Adding..." : "Add to Whitelist"}
+        </button>
+        {wlStatus && (
+          <p className={wlStatus.includes("added") ? "muted" : "error"}>{wlStatus}</p>
+        )}
       </div>
 
       <HistoryTable

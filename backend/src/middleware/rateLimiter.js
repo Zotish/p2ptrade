@@ -45,3 +45,21 @@ export const withdrawLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many withdrawal requests. Try again later." }
 });
+
+// ─── Order creation — prevent spam orders ────────────────────────
+export const orderCreateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,   // ১০ মিনিট
+  max: 20,                     // ২০টা order create
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many orders. Please wait before creating more." }
+});
+
+// ─── Order action (confirm/release/pay) — prevent double-submit ──
+export const orderActionLimiter = rateLimit({
+  windowMs: 60 * 1000,         // ১ মিনিট
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many actions. Slow down." }
+});

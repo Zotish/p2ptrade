@@ -38,7 +38,11 @@ export async function updateOrderFee(id, fields) {
   if (!keys.length) return getOrderById(id);
   const setClause = keys.map((k) => `${k} = ?`).join(", ");
   const values = keys.map((k) => fields[k]);
-  await run(`update orders set ${setClause}, updated_at = CURRENT_TIMESTAMP where id = ?`, [...values, id]);
+  // Atomic: only update if fee hasn't been applied yet (prevents double-fee on concurrent calls)
+  await run(
+    `update orders set ${setClause}, updated_at = CURRENT_TIMESTAMP where id = ? and fee_amount is null`,
+    [...values, id]
+  );
   return getOrderById(id);
 }
 

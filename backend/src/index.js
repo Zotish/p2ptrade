@@ -8,6 +8,20 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   console.error("[uncaughtException]", err.message);
 });
+
+// ── Critical environment variable validation ──────────────────────
+const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET", "WALLET_MNEMONIC"];
+const missing = REQUIRED_VARS.filter((v) => !process.env[v]);
+if (missing.length) {
+  console.error(`[startup] ❌ Missing critical environment variables: ${missing.join(", ")}`);
+  console.error("[startup] Server cannot start safely. Set these in Railway environment variables.");
+  process.exit(1);
+}
+if (process.env.JWT_SECRET === "dev_change_me" || (process.env.JWT_SECRET || "").length < 32) {
+  console.error("[startup] ❌ JWT_SECRET is too weak or default. Use a random 64-char string.");
+  process.exit(1);
+}
+console.log("[startup] ✅ Environment validation passed");
 import { createServer } from "node:http";
 import path from "node:path";
 import fs from "node:fs";
@@ -33,15 +47,28 @@ import { chatRouter } from "./routes/chat.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { startBackupScheduler } from "./services/backupScheduler.js";
 import { twofaRouter } from "./routes/twofa.js";
+import { whitelistRouter } from "./routes/whitelist.js";
 
-// ── Sentry Error Tracking (DSN থাকলে চালু হবে) ──────────────────
+// ── Sentry Error Tracking ─────────────────────────────────────────
 if (config.sentryDsn) {
   Sentry.init({
     dsn: config.sentryDsn,
-    environment: process.env.NODE_ENV || "development",
-    tracesSampleRate: 0.2
+    environment: process.env.NODE_ENV || "production",
+    tracesSampleRate: 0.1,
+    integrations: [
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration()
+    ],
+    beforeSend(event) {
+      // Don't send 4xx client errors to Sentry (too noisy)
+      const status = event?.contexts?.response?.status_code;
+      if (status && status < 500) return null;
+      return event;
+    }
   });
-  console.log("[sentry] ✅ Error tracking enabled");
+  console.log("[sentry] ✅ Error tracking enabled (DSN configured)");
+} else {
+  console.log("[sentry] ℹ️  SENTRY_DSN not set — error tracking disabled");
 }
 
 const app = express();
@@ -90,6 +117,7 @@ if (fs.existsSync(frontendDist)) {
 app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 app.use("/2fa", twofaRouter);
+app.use("/wallets/whitelist", whitelistRouter);  // must be BEFORE /wallets
 app.use("/wallets", walletsRouter);
 app.use("/market", marketRouter);
 app.use("/scan", scanRouter);
@@ -100,7 +128,7 @@ app.use("/orders", ordersRouter);
 
 // ── Sentry Error Handler (routes এর পরে আসবে) ────────────────────
 if (config.sentryDsn) {
-  app.use(Sentry.expressErrorHandler());
+  Sentry.setupExpressErrorHandler(app);
 }
 
 // ── React Router catch-all — frontend build থাকলে index.html দাও ──

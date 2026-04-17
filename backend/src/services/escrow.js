@@ -19,17 +19,19 @@ export async function reserveEscrow({ offerId, buyerUserId, sellerUserId, token,
 export async function releaseEscrow(escrowId) {
   const escrow = await getEscrowById(escrowId);
   if (!escrow) return null;
-  if (escrow.status === "released") return escrow;
+  if (escrow.status === "released") return escrow;  // idempotent
+  // Atomic: only transition from "reserved" → "released"
   await adjustBalance(escrow.buyer_user_id, escrow.token, escrow.amount_token);
-  return updateEscrowStatus(escrowId, "released");
+  return updateEscrowStatus(escrowId, "released", "reserved");
 }
 
 export async function refundEscrow(escrowId) {
   const escrow = await getEscrowById(escrowId);
   if (!escrow) return null;
-  if (escrow.status === "refunded") return escrow;
+  if (escrow.status === "refunded") return escrow;  // idempotent
+  if (escrow.status === "released") throw new Error("Cannot refund: escrow already released to buyer");
   await adjustBalance(escrow.seller_user_id, escrow.token, escrow.amount_token);
-  return updateEscrowStatus(escrowId, "refunded");
+  return updateEscrowStatus(escrowId, "refunded", "reserved");
 }
 
 export async function getEscrow(escrowId) {

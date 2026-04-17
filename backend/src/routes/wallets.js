@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createRequire } from "node:module";
 import { requireAuth } from "../auth.js";
 import { getOrCreateAddress, getSupportedChains, getUserAddresses } from "../services/walletService.js";
 import { requestWithdrawal, estimateWithdrawalFee } from "../services/withdrawService.js";
@@ -6,6 +7,11 @@ import { adjustBalance, getBalance } from "../repositories/balances.js";
 import { listDepositsForUser, listWithdrawalsForUser } from "../repositories/history.js";
 import { scanBnbTx, scanSolTx } from "../services/scanService.js";
 import { listActiveAssets, listActiveDepositAssets, listActiveWithdrawalAssets, listChains } from "../repositories/admin.js";
+import { get } from "../db.js";
+
+// speakeasy CJS
+const _require = createRequire(import.meta.url);
+const speakeasy = _require("speakeasy");
 
 export const walletsRouter = Router();
 
@@ -86,10 +92,28 @@ walletsRouter.get("/withdraw/estimate", requireAuth, async (req, res) => {
 });
 
 walletsRouter.post("/withdraw", requireAuth, async (req, res) => {
-  const { chain, asset, toAddress, amount } = req.body || {};
+  const { chain, asset, toAddress, amount, totpCode } = req.body || {};
   if (!chain || !asset || !toAddress || !amount) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
+  // ── 2FA check — enabled থাকলে TOTP code verify করো ───────────
+  const userRow = await get("select totp_enabled, totp_secret from users where id = $1", [req.user.id]);
+  if (userRow?.totp_enabled) {
+    if (!totpCode) {
+      return res.status(400).json({ error: "2FA code required for withdrawal", requires2fa: true });
+    }
+    const valid = speakeasy.totp.verify({
+      secret: userRow.totp_secret,
+      encoding: "base32",
+      token: String(totpCode).replace(/\s/g, ""),
+      window: 1
+    });
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid 2FA code. Check your authenticator app.", requires2fa: true });
+    }
+  }
+
   try {
     const record = await requestWithdrawal({
       userId: req.user.id,

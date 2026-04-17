@@ -9,22 +9,36 @@ import { createPayment, getPaymentByOrder, updatePaymentStatus } from "../reposi
 import { applyTradeFee } from "../services/tradeFees.js";
 import { createMessage, listMessages } from "../repositories/messages.js";
 import { emitToUser } from "../socket.js";
+import { logAudit } from "../repositories/auditLog.js";
+import { orderCreateLimiter, orderActionLimiter } from "../middleware/rateLimiter.js";
 
 export const ordersRouter = Router();
 
-ordersRouter.post("/", requireAuth, async (req, res) => {
+// ── Create order ──────────────────────────────────────────────────
+ordersRouter.post("/", requireAuth, orderCreateLimiter, async (req, res) => {
   const { offerId, amountFiat } = req.body || {};
   if (!offerId || amountFiat == null) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+  // Validation: must be positive number
+  const parsedFiat = Number(amountFiat);
+  if (!Number.isFinite(parsedFiat) || parsedFiat <= 0) {
+    return res.status(400).json({ error: "amountFiat must be a positive number" });
+  }
 
   const offer = await getOfferById(offerId);
   if (!offer) return res.status(404).json({ error: "Offer not found" });
+  if (offer.status !== "active") return res.status(400).json({ error: "Offer is not active" });
   if (offer.maker_user_id === req.user.id) {
     return res.status(400).json({ error: "You cannot order your own offer" });
   }
+  if (parsedFiat < offer.min_amount || parsedFiat > offer.max_amount) {
+    return res.status(400).json({
+      error: `Amount must be between ${offer.min_amount} and ${offer.max_amount} ${offer.fiat}`
+    });
+  }
 
-  const amountToken = Number((Number(amountFiat) / Number(offer.price_fiat)).toFixed(8));
+  const amountToken = Number((parsedFiat / Number(offer.price_fiat)).toFixed(8));
   const expiresAt = new Date(Date.now() + config.escrowTimeoutMinutes * 60 * 1000);
 
   try {
@@ -40,7 +54,7 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
       offerId,
       buyerUserId: req.user.id,
       escrowId: escrow.id,
-      amountFiat,
+      amountFiat: parsedFiat,
       amountToken,
       expiresAt
     });
@@ -103,10 +117,12 @@ ordersRouter.get("/:id/messages", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/messages", requireAuth, async (req, res) => {
+ordersRouter.post("/:id/messages", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const { message } = req.body || {};
-    if (!message) return res.status(400).json({ error: "Message required" });
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ error: "Message required" });
+    }
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     const offer = await getOfferById(order.offer_id);
@@ -117,7 +133,7 @@ ordersRouter.post("/:id/messages", requireAuth, async (req, res) => {
     const msg = await createMessage({
       orderId: order.id,
       senderId: req.user.id,
-      message: String(message).slice(0, 500)
+      message: String(message).trim().slice(0, 500)
     });
     res.status(201).json({ message: msg });
   } catch (error) {
@@ -125,7 +141,8 @@ ordersRouter.post("/:id/messages", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/confirm-payment", requireAuth, async (req, res) => {
+// ── Seller confirms payment received (legacy route) ────────────────
+ordersRouter.post("/:id/confirm-payment", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -141,7 +158,8 @@ ordersRouter.post("/:id/confirm-payment", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/pay", requireAuth, async (req, res) => {
+// ── Buyer submits payment proof ────────────────────────────────────
+ordersRouter.post("/:id/pay", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const { method, reference, note } = req.body || {};
     if (!method) return res.status(400).json({ error: "Missing payment method" });
@@ -150,6 +168,9 @@ ordersRouter.post("/:id/pay", requireAuth, async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (order.buyer_user_id !== req.user.id) {
       return res.status(403).json({ error: "Not order buyer" });
+    }
+    if (!["awaiting_payment", "payment_confirmed"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot submit payment for order in '${order.status}' status` });
     }
 
     const existing = await getPaymentByOrder(order.id);
@@ -160,8 +181,8 @@ ordersRouter.post("/:id/pay", requireAuth, async (req, res) => {
     const payment = await createPayment({
       orderId: order.id,
       method,
-      reference,
-      note,
+      reference: String(reference || "").slice(0, 200),
+      note: String(note || "").slice(0, 500),
       status: "submitted"
     });
     const updated = await updateOrderStatus(order.id, "payment_submitted");
@@ -183,10 +204,17 @@ ordersRouter.post("/:id/pay", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/confirm", requireAuth, async (req, res) => {
+// ── Seller confirms & releases escrow ─────────────────────────────
+ordersRouter.post("/:id/confirm", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.status === "released") {
+      return res.status(400).json({ error: "Order already released" });
+    }
+    if (order.status !== "payment_submitted" && order.status !== "payment_confirmed") {
+      return res.status(400).json({ error: `Cannot confirm order in '${order.status}' status` });
+    }
 
     const offer = await getOfferById(order.offer_id);
     if (!offer) return res.status(404).json({ error: "Offer not found" });
@@ -214,7 +242,8 @@ ordersRouter.post("/:id/confirm", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/reject", requireAuth, async (req, res) => {
+// ── Seller rejects payment ────────────────────────────────────────
+ordersRouter.post("/:id/reject", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -231,14 +260,11 @@ ordersRouter.post("/:id/reject", requireAuth, async (req, res) => {
     const payment = await getPaymentByOrder(order.id);
     if (!payment) return res.status(400).json({ error: "No payment submitted" });
 
-    // Escrow is NOT refunded here — stays frozen until buyer disputes or cancels
-    // rejected_at is used by the appeal timer (auto-cancel after 24h)
     await updatePaymentStatus(payment.id, "rejected");
     const updated = await updateOrderStatus(order.id, "payment_rejected", {
       rejected_at: new Date().toISOString()
     });
 
-    // Notify buyer: seller rejected, give them options
     emitToUser(order.buyer_user_id, "order:payment_rejected", {
       orderId: order.id,
       token: offer.token,
@@ -253,8 +279,8 @@ ordersRouter.post("/:id/reject", requireAuth, async (req, res) => {
   }
 });
 
-// Buyer raises a dispute after seller rejected
-ordersRouter.post("/:id/dispute", requireAuth, async (req, res) => {
+// ── Buyer raises a dispute ────────────────────────────────────────
+ordersRouter.post("/:id/dispute", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -266,23 +292,24 @@ ordersRouter.post("/:id/dispute", requireAuth, async (req, res) => {
     }
 
     const { reason } = req.body || {};
-    const updated = await updateOrderStatus(order.id, "disputed", { dispute_reason: reason || null });
+    const trimmedReason = String(reason || "").trim().slice(0, 1000);
+    const updated = await updateOrderStatus(order.id, "disputed", {
+      dispute_reason: trimmedReason || null
+    });
 
     const offer = await getOfferById(order.offer_id);
-
     if (offer) {
       emitToUser(offer.maker_user_id, "order:disputed", {
         orderId: order.id,
-        reason: reason || "No reason provided"
+        reason: trimmedReason || "No reason provided"
       });
-
       emitToUser("admin", "order:disputed", {
         orderId: order.id,
         buyerId: order.buyer_user_id,
         sellerId: offer.maker_user_id,
         amountToken: order.amount_token,
         token: offer.token,
-        reason: reason || "No reason provided"
+        reason: trimmedReason || "No reason provided"
       });
     }
 
@@ -292,8 +319,8 @@ ordersRouter.post("/:id/dispute", requireAuth, async (req, res) => {
   }
 });
 
-// Buyer cancels after rejection (escrow returned to seller, no dispute)
-ordersRouter.post("/:id/cancel", requireAuth, async (req, res) => {
+// ── Buyer cancels after rejection ─────────────────────────────────
+ordersRouter.post("/:id/cancel", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -316,15 +343,20 @@ ordersRouter.post("/:id/cancel", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/release", requireAuth, async (req, res) => {
+// ── Seller manually releases escrow ──────────────────────────────
+ordersRouter.post("/:id/release", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.status === "released") {
+      return res.status(400).json({ error: "Order already released" });
+    }
     const offer = await getOfferById(order.offer_id);
     if (!offer) return res.status(404).json({ error: "Offer not found" });
     if (offer.maker_user_id !== req.user.id) {
       return res.status(403).json({ error: "Not offer seller" });
     }
+
     await applyTradeFee(order, offer);
     const escrow = await releaseEscrow(order.escrow_id);
     const updated = await updateOrderStatus(order.id, "released");
@@ -341,15 +373,20 @@ ordersRouter.post("/:id/release", requireAuth, async (req, res) => {
   }
 });
 
-ordersRouter.post("/:id/refund", requireAuth, async (req, res) => {
+// ── Seller refunds escrow ─────────────────────────────────────────
+ordersRouter.post("/:id/refund", requireAuth, orderActionLimiter, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (["released", "refunded"].includes(order.status)) {
+      return res.status(400).json({ error: `Order already ${order.status}` });
+    }
     const offer = await getOfferById(order.offer_id);
     if (!offer) return res.status(404).json({ error: "Offer not found" });
     if (offer.maker_user_id !== req.user.id) {
       return res.status(403).json({ error: "Not offer seller" });
     }
+
     const escrow = await refundEscrow(order.escrow_id);
     const updated = await updateOrderStatus(order.id, "refunded");
 

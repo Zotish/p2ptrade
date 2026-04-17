@@ -31,7 +31,7 @@ function DisputeChat({ orderId }) {
           {(Array.isArray(msgs) ? msgs : []).map((m) => (
             <div key={m.id} className="dispute-chat-msg">
               <span className="muted small">{m.sender_id?.slice(0,8)} · {new Date(m.created_at).toLocaleTimeString()}</span>
-              <p>{m.body}</p>
+              <p>{m.message || m.body || ""}</p>
             </div>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { all } from "../db.js";
 import {
   deriveBtcKeyByPath,
   deriveEvmWalletByPath,
@@ -47,6 +48,29 @@ const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)"
 ];
 
+/**
+ * Check daily withdrawal limit for a user.
+ * শেষ 24 ঘণ্টায় কতটা withdrawal করেছে সেটা count করে।
+ */
+async function checkDailyWithdrawalLimit(userId) {
+  const maxCount = config.withdrawalDailyMaxCount;
+  if (!maxCount) return; // 0 = disabled
+
+  const rows = await all(
+    `select count(*) as cnt from withdrawals
+     where user_id = ?
+       and status in ('pending_approval', 'sent')
+       and created_at >= ((NOW() AT TIME ZONE 'UTC') - INTERVAL '24 hours')::text`,
+    [userId]
+  );
+  const count = Number(rows[0]?.cnt || 0);
+  if (count >= maxCount) {
+    throw new Error(
+      `Daily withdrawal limit reached (${maxCount} per 24 hours). Try again later.`
+    );
+  }
+}
+
 export async function requestWithdrawal({ userId, chain, asset, toAddress, amount }) {
   const assetRow = await getAssetBySymbol(asset);
   if (!assetRow || !assetRow.is_active || !assetRow.withdrawals_enabled) {
@@ -56,6 +80,9 @@ export async function requestWithdrawal({ userId, chain, asset, toAddress, amoun
   if (amount < min) {
     throw new Error(`Minimum withdrawal for ${asset} is ${min}`);
   }
+
+  // ── Daily limit check ──────────────────────────────────────────
+  await checkDailyWithdrawalLimit(userId);
 
   const chainCode = assetRow.chain_code;
   const chainRow = await getChainByCode(chainCode);

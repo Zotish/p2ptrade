@@ -3,6 +3,7 @@ import multer from "multer";
 import sharp from "sharp";
 import path from "node:path";
 import fs from "node:fs";
+import { timingSafeEqual } from "node:crypto";
 import { comparePassword, getUserRole, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "../auth.js";
 import { createUser, getUserByEmail, setVerification, verifyUserByCode, updateUserProfile, updateUserPassword, getUserById, updateUserLastSeen } from "../repositories/users.js";
 import { config } from "../config.js";
@@ -99,12 +100,15 @@ authRouter.post("/login", authLimiter, async (req, res) => {
     return res.status(400).json({ error: "Email and password required" });
   }
   const normalizedEmail = String(email).toLowerCase();
-  if (
-    config.adminLoginEmail &&
-    config.adminLoginPassword &&
-    normalizedEmail === config.adminLoginEmail &&
-    password === config.adminLoginPassword
-  ) {
+  // Timing-safe admin password comparison — prevents timing attacks
+  const isAdminEmail = config.adminLoginEmail && normalizedEmail === config.adminLoginEmail;
+  const adminPwBuf   = Buffer.from(config.adminLoginPassword || "");
+  const inputPwBuf   = Buffer.from(password || "");
+  const adminPwMatch = adminPwBuf.length > 0 &&
+    adminPwBuf.length === inputPwBuf.length &&
+    timingSafeEqual(adminPwBuf, inputPwBuf);
+
+  if (isAdminEmail && adminPwMatch) {
     const payload = { id: "admin-fixed", email: config.adminLoginEmail, role: "admin" };
     const { access, refresh } = setAuthCookies(res, payload);
     return res.json({

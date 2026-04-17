@@ -1,5 +1,5 @@
 import { config } from "../config.js";
-import { run } from "../db.js";
+import { run, get } from "../db.js";
 import { listActiveAssets } from "../repositories/admin.js";
 import { listFiats } from "../repositories/fiats.js";
 
@@ -101,6 +101,13 @@ export async function getCryptoPricesForAssets(assets) {
   }
 
   if (!Object.keys(data).length) {
+    // ── DB Fallback: last known price from price_ticks ────────────
+    const fallback = await getLastKnownPrices(resolvedAssets.map((a) => a.symbol));
+    if (Object.keys(fallback).length) {
+      console.warn("[pricing] CoinGecko failed — using last known DB prices as fallback");
+      cryptoCache = { at: now - CACHE_MS + 60_000, data: fallback }; // re-check in 60s
+      return fallback;
+    }
     const message = json?.error || json?.status?.error_message || "CoinGecko returned no prices";
     throw new Error(message);
   }
@@ -143,6 +150,32 @@ export async function getFxRates() {
 
   fxCache = { at: now, data };
   return data;
+}
+
+/**
+ * Last-known price fallback from price_ticks table.
+ * CoinGecko down হলে এটা ব্যবহার হবে।
+ */
+async function getLastKnownPrices(symbols) {
+  const result = {};
+  for (const symbol of symbols) {
+    try {
+      const row = await get(
+        "select usd_price from price_ticks where token = ? order by captured_at desc limit 1",
+        [symbol]
+      );
+      if (row?.usd_price) {
+        result[symbol] = { token: symbol, usd: Number(row.usd_price), source: "db-fallback" };
+      } else if (isStablecoinSymbol(symbol)) {
+        result[symbol] = { token: symbol, usd: 1, source: "stablecoin-fallback" };
+      }
+    } catch {
+      if (isStablecoinSymbol(symbol)) {
+        result[symbol] = { token: symbol, usd: 1, source: "stablecoin-fallback" };
+      }
+    }
+  }
+  return result;
 }
 
 function savePriceTick(token, usdPrice, source) {

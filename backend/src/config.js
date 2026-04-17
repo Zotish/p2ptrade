@@ -45,11 +45,15 @@ export const config = {
   priceCacheMs: Number(process.env.PRICE_CACHE_MS || 0),
   btcNetwork: process.env.BTC_NETWORK || "testnet",
   treasuryIndex: Number(process.env.TREASURY_INDEX || 1000000),
-  confBtc: Number(process.env.CONFIRMATIONS_BTC || 1),
-  confEvm: Number(process.env.CONFIRMATIONS_EVM || 1),
-  confSol: Number(process.env.CONFIRMATIONS_SOL || 1),
-  confTron: Number(process.env.CONFIRMATIONS_TRON || 1),
-  confRipple: Number(process.env.CONFIRMATIONS_RIPPLE || 1),
+  // Confirmations — mainnet-safe defaults
+  confBtc:    Number(process.env.CONFIRMATIONS_BTC    || 3),   // BTC: ~30min
+  confEvm:    Number(process.env.CONFIRMATIONS_EVM    || 12),  // ETH/BNB: ~3min
+  confSol:    Number(process.env.CONFIRMATIONS_SOL    || 32),  // SOL: ~15s
+  confTron:   Number(process.env.CONFIRMATIONS_TRON   || 20),  // TRX: ~1min
+  confRipple: Number(process.env.CONFIRMATIONS_RIPPLE || 3),   // XRP: ~4s
+  // Withdrawal limits per user per 24h
+  withdrawalDailyMaxCount:  Number(process.env.WITHDRAWAL_DAILY_MAX_COUNT  || 5),
+  withdrawalDailyMaxAmount: Number(process.env.WITHDRAWAL_DAILY_MAX_AMOUNT || 0), // 0 = no limit
   // Email
   resendApiKey: process.env.RESEND_API_KEY || "",
   emailFrom: process.env.EMAIL_FROM || "P2P Escrow <onboarding@resend.dev>",

@@ -356,4 +356,40 @@ export async function runMigrations() {
   await run("alter table admin_assets add column if not exists coingecko_id text", []);
   await run("alter table admin_assets add column if not exists fee_address text", []);
   await run("alter table admin_assets add column if not exists fee_bps integer not null default 30", []);
+
+  // ── Audit log — admin action history ─────────────────────────
+  await run(
+    `create table if not exists audit_log (
+      id text primary key,
+      actor_id text not null,
+      actor_email text,
+      action text not null,
+      target_id text,
+      target_type text,
+      meta text,
+      ip text,
+      created_at text not null default CURRENT_TIMESTAMP
+    )`,
+    []
+  );
+  await run("create index if not exists audit_log_actor_idx on audit_log(actor_id)", []);
+  await run("create index if not exists audit_log_action_idx on audit_log(action)", []);
+  await run("create index if not exists audit_log_created_idx on audit_log(created_at desc)", []);
+
+  // ── Withdrawal address whitelist ──────────────────────────────
+  await run(
+    `create table if not exists withdrawal_whitelist (
+      id text primary key,
+      user_id text not null,
+      chain text not null,
+      address text not null,
+      label text,
+      created_at text not null default CURRENT_TIMESTAMP
+    )`,
+    []
+  );
+  await run(
+    "create unique index if not exists whitelist_user_chain_addr_idx on withdrawal_whitelist(user_id, chain, address)",
+    []
+  );
 }
