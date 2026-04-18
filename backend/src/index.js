@@ -152,6 +152,33 @@ app.use((err, req, res, _next) => {
 
 initSocket(httpServer);
 
+// ── DB health check: প্রতি 2 মিনিটে tables আছে কিনা দেখো ──────
+// DB delete হলে auto-heal করে migrations+seed re-run করবে
+let watchersStarted = false;
+async function dbHealthCheck() {
+  try {
+    const { get } = await import("./db.js");
+    // যদি users table না থাকে তাহলে DB মুছে ফেলা হয়েছে বুঝতে হবে
+    await get("SELECT 1 FROM users LIMIT 1", []);
+  } catch (_) {
+    console.log("[db-heal] Tables missing — re-running migrations & seed...");
+    try {
+      await runMigrations();
+      await seedAdminCatalog();
+      dbReady = true;
+      if (!watchersStarted) {
+        watchersStarted = true;
+        startRefundScheduler();
+        startBackupScheduler();
+        startWatchers();
+      }
+      console.log("[db-heal] ✅ Database restored successfully");
+    } catch (healErr) {
+      console.error("[db-heal] ❌ Heal failed:", healErr.message);
+    }
+  }
+}
+
 // ── Port-এ listen করো আগে, তারপর DB init background-এ ──────────
 httpServer.listen(config.port, () => {
   console.log(`API listening on :${config.port}`);
@@ -167,6 +194,7 @@ httpServer.listen(config.port, () => {
       console.log("[db] ✅ Catalog seeded");
 
       dbReady = true;
+      watchersStarted = true;
 
       startRefundScheduler();
       startBackupScheduler();
@@ -176,4 +204,7 @@ httpServer.listen(config.port, () => {
       process.exit(1);
     }
   })();
+
+  // প্রতি 2 মিনিটে DB health check
+  setInterval(dbHealthCheck, 2 * 60 * 1000);
 });
