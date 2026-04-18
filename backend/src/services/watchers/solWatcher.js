@@ -54,10 +54,19 @@ async function pollSol(chainCode) {
   await withSolConnection(chainCode, async (connection) => {
     for (const addr of addresses) {
       try {
+        // Only process transactions that occurred AFTER the wallet address was
+        // recorded in our database. This prevents historical on-chain activity
+        // from being credited as deposits (e.g. after a DB reset).
+        const addrCreatedSec = addr.created_at
+          ? Math.floor(new Date(addr.created_at).getTime() / 1000)
+          : 0;
+
         const pubkey = new PublicKey(addr.address);
         const sigs = await connection.getSignaturesForAddress(pubkey, { limit: 100 });
         for (const sig of sigs) {
           if (!sig.confirmationStatus || sig.err) continue;
+          // sig.blockTime is Unix seconds; skip anything before address creation
+          if (sig.blockTime !== null && sig.blockTime !== undefined && sig.blockTime < addrCreatedSec) continue;
           const nativeAsset = native.find((a) => a.symbol === chainCode) || native[0];
           if (!nativeAsset) continue;
           const txid = sig.signature;
@@ -89,6 +98,7 @@ async function pollSol(chainCode) {
           const tokenSigs = await connection.getSignaturesForAddress(ata, { limit: 100 });
           for (const sig of tokenSigs) {
             if (!sig.confirmationStatus || sig.err) continue;
+            if (sig.blockTime !== null && sig.blockTime !== undefined && sig.blockTime < addrCreatedSec) continue;
             const txid = `${sig.signature}:${token.symbol}`;
             const tx = await connection.getTransaction(sig.signature, { maxSupportedTransactionVersion: 0 });
             if (!tx || !tx.meta || tx.meta.err) continue;

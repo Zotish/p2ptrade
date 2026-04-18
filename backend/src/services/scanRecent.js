@@ -195,12 +195,17 @@ async function scanRecentSol(chainCode, addresses, result) {
   await withSolConnection(chainCode, async (connection) => {
     for (const addr of solAddresses) {
       try {
+        const addrCreatedSec = addr.created_at
+          ? Math.floor(new Date(addr.created_at).getTime() / 1000)
+          : 0;
+
         const pubkey = new PublicKey(addr.address);
         const sigs = await connection.getSignaturesForAddress(pubkey, {
           limit: 100
         });
         for (const sig of sigs) {
           if (!sig.confirmationStatus || sig.err) continue;
+          if (sig.blockTime !== null && sig.blockTime !== undefined && sig.blockTime < addrCreatedSec) continue;
           const nativeAsset = native.find((a) => a.symbol === chainCode) || native[0];
           if (!nativeAsset) continue;
           const txid = sig.signature;
@@ -236,6 +241,7 @@ async function scanRecentSol(chainCode, addresses, result) {
           const tokenSigs = await connection.getSignaturesForAddress(ata, { limit: 100 });
           for (const sig of tokenSigs) {
             if (!sig.confirmationStatus || sig.err) continue;
+            if (sig.blockTime !== null && sig.blockTime !== undefined && sig.blockTime < addrCreatedSec) continue;
             const txid = `${sig.signature}:${token.symbol}`;
             const tx = await connection.getTransaction(sig.signature, {
               maxSupportedTransactionVersion: 0

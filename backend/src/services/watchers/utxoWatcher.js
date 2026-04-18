@@ -43,9 +43,15 @@ async function pollUtxo(chainCode) {
 
   for (const addr of addresses) {
     try {
+      const addrCreatedSec = addr.created_at
+        ? Math.floor(new Date(addr.created_at).getTime() / 1000)
+        : 0;
       const txs = await fetchBtcJson(`/address/${addr.address}/txs`, chainCode);
       if (!Array.isArray(txs)) continue;
       for (const tx of txs) {
+        // Skip transactions that confirmed before this address was created in our DB
+        const txTime = tx.status?.block_time;
+        if (txTime && addrCreatedSec && txTime < addrCreatedSec) continue;
         const outputs = Array.isArray(tx.vout) ? tx.vout : [];
         for (let vout = 0; vout < outputs.length; vout += 1) {
           const out = outputs[vout];
