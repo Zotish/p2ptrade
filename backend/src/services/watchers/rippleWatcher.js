@@ -1,6 +1,6 @@
 import { listChains, listActiveDepositAssets } from "../../repositories/admin.js";
 import { all } from "../../db.js";
-import { getDepositByTx, createDeposit } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { withRippleRpc } from "../rpcProvider.js";
 import { config } from "../../config.js";
@@ -82,11 +82,9 @@ async function pollRipple(chainCode) {
         if (!txid) continue;
         if (typeof tx.Amount === "string") {
           if (!nativeAsset) continue;
-          const exists = await getDepositByTx(nativeAsset.symbol, txid);
-          if (exists) continue;
           const amount = Number(tx.Amount) / 1e6;
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted: insertedXrp } = await createDepositIfNew({
             addressId: addr.id,
             chain: nativeAsset.symbol,
             txid,
@@ -94,15 +92,13 @@ async function pollRipple(chainCode) {
             confirmations: config.confRipple,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
+          if (insertedXrp) await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
         } else if (tx.Amount && typeof tx.Amount === "object") {
           const token = matchIssuedToken(tokens, tx.Amount);
           if (!token) continue;
-          const exists = await getDepositByTx(token.symbol, txid);
-          if (exists) continue;
           const amount = Number(tx.Amount.value || 0);
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted: insertedXrpToken } = await createDepositIfNew({
             addressId: addr.id,
             chain: token.symbol,
             txid,
@@ -110,7 +106,7 @@ async function pollRipple(chainCode) {
             confirmations: config.confRipple,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, token.symbol, amount);
+          if (insertedXrpToken) await adjustBalance(addr.user_id, token.symbol, amount);
         }
       }
     });

@@ -1,5 +1,5 @@
 import { config } from "../../config.js";
-import { createDeposit, getDepositByTx } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { getUserAddresses } from "../../services/walletService.js";
 import { all } from "../../db.js";
@@ -41,14 +41,12 @@ async function pollBtc() {
             : out?.scriptpubkey_address === addr.address;
           if (!matches) continue;
           const txid = `${tx.txid}:${vout}`;
-          const exists = await getDepositByTx("BTC", txid);
-          if (exists) continue;
           const blockHeight = tx.status?.block_height;
           const confirmations = blockHeight ? tip - blockHeight + 1 : 0;
           if (confirmations < config.confBtc) continue;
           const amount = Number(out.value || 0) / 1e8;
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: addr.id,
             chain: "BTC",
             txid,
@@ -56,7 +54,7 @@ async function pollBtc() {
             confirmations,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, "BTC", amount);
+          if (inserted) await adjustBalance(addr.user_id, "BTC", amount);
         }
       }
     } catch (e) {

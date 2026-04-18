@@ -1,6 +1,6 @@
 import { listChains, listActiveDepositAssets } from "../../repositories/admin.js";
 import { all } from "../../db.js";
-import { getDepositByTx, createDeposit } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { withTronRpc } from "../rpcProvider.js";
 import { tronAddressEquals } from "../tronUtils.js";
@@ -79,9 +79,7 @@ async function pollTron(chainCode) {
         const amount = Number(value.amount || 0) / 1e6;
         if (amount <= 0) continue;
         const txid = `${tx.txID}:${addr.address}`;
-        const exists = await getDepositByTx(nativeAsset.symbol, txid);
-        if (exists) continue;
-        await createDeposit({
+        const { inserted: insertedTrx } = await createDepositIfNew({
           addressId: addr.id,
           chain: nativeAsset.symbol,
           txid,
@@ -89,7 +87,7 @@ async function pollTron(chainCode) {
           confirmations: config.confTron,
           status: "confirmed"
         });
-        await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
+        if (insertedTrx) await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
       }
 
       if (tokens.length) {
@@ -109,9 +107,7 @@ async function pollTron(chainCode) {
           const amount = Number(tx.value || 0) / 10 ** decimals;
           if (amount <= 0) continue;
           const txid = `${tx.transaction_id || tx.txID}:${token.symbol}`;
-          const exists = await getDepositByTx(token.symbol, txid);
-          if (exists) continue;
-          await createDeposit({
+          const { inserted: insertedTrc20 } = await createDepositIfNew({
             addressId: addr.id,
             chain: token.symbol,
             txid,
@@ -119,7 +115,7 @@ async function pollTron(chainCode) {
             confirmations: config.confTron,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, token.symbol, amount);
+          if (insertedTrc20) await adjustBalance(addr.user_id, token.symbol, amount);
         }
       }
     });

@@ -1,6 +1,6 @@
 import { listChains } from "../../repositories/admin.js";
 import { all } from "../../db.js";
-import { createDeposit, getDepositByTx } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { fetchBtcJson, fetchBtcText } from "../rpcProvider.js";
 import { config } from "../../config.js";
@@ -54,14 +54,12 @@ async function pollUtxo(chainCode) {
             : out?.scriptpubkey_address === addr.address;
           if (!matches) continue;
           const txid = `${tx.txid}:${vout}`;
-          const exists = await getDepositByTx(chainCode, txid);
-          if (exists) continue;
           const blockHeight = tx.status?.block_height;
           const confirmations = blockHeight ? tip - blockHeight + 1 : 0;
           if (confirmations < (config.confBtc || 1)) continue;
           const amount = Number(out.value || 0) / 1e8;
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: addr.id,
             chain: chainCode,
             txid,
@@ -69,7 +67,7 @@ async function pollUtxo(chainCode) {
             confirmations,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, chainCode, amount);
+          if (inserted) await adjustBalance(addr.user_id, chainCode, amount);
         }
       }
     } catch (e) {

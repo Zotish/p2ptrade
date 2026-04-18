@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { all } from "../db.js";
-import { createDeposit, getDepositByTx } from "../repositories/deposits.js";
+import { createDepositIfNew } from "../repositories/deposits.js";
 import { adjustBalance } from "../repositories/balances.js";
 import { withEvmProvider, withSolConnection } from "./rpcProvider.js";
 
@@ -20,11 +20,8 @@ export async function scanBnbTx(txhash) {
     const amount = Number(ethers.formatEther(tx.value));
     if (amount <= 0) throw new Error("Zero amount");
     const txid = `${tx.hash}:${tx.to}`;
-    const exists = await getDepositByTx("BNB", txid);
-    if (exists) return { credited: false, reason: "already_credited" };
-
     const confirmations = Number(receipt.confirmations ?? 1);
-    await createDeposit({
+    const { inserted } = await createDepositIfNew({
       addressId: row.id,
       chain: "BNB",
       txid,
@@ -32,6 +29,7 @@ export async function scanBnbTx(txhash) {
       confirmations,
       status: "confirmed"
     });
+    if (!inserted) return { credited: false, reason: "already_credited" };
     await adjustBalance(row.user_id, "BNB", amount);
     return { credited: true, amount };
   });
@@ -44,9 +42,6 @@ export async function scanSolTx(txhash, userId) {
     });
     if (!tx || !tx.meta) throw new Error("Transaction not found");
     if (tx.meta.err) throw new Error("Transaction failed");
-
-    const exists = await getDepositByTx("SOL", txhash);
-    if (exists) return { credited: false, reason: "already_credited" };
 
     const rows = await all(
       "select * from wallet_addresses where user_id = ? and chain = 'SOL'",
@@ -65,7 +60,7 @@ export async function scanSolTx(txhash, userId) {
       const post = tx.meta.postBalances[index] || 0;
       const delta = (post - pre) / 1e9;
       if (delta <= 0) continue;
-      await createDeposit({
+      const { inserted } = await createDepositIfNew({
         addressId: row.id,
         chain: "SOL",
         txid: txhash,
@@ -73,6 +68,7 @@ export async function scanSolTx(txhash, userId) {
         confirmations: 1,
         status: "confirmed"
       });
+      if (!inserted) return { credited: false, reason: "already_credited" };
       await adjustBalance(row.user_id, "SOL", delta);
       return { credited: true, amount: delta };
     }

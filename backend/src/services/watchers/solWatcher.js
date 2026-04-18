@@ -1,5 +1,5 @@
 import { all } from "../../db.js";
-import { createDeposit, getDepositByTx } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { PublicKey } from "@solana/web3.js";
 import { config } from "../../config.js";
@@ -57,12 +57,10 @@ async function pollSol(chainCode) {
         const pubkey = new PublicKey(addr.address);
         const sigs = await connection.getSignaturesForAddress(pubkey, { limit: 100 });
         for (const sig of sigs) {
-          const txid = sig.signature;
+          if (!sig.confirmationStatus || sig.err) continue;
           const nativeAsset = native.find((a) => a.symbol === chainCode) || native[0];
           if (!nativeAsset) continue;
-          const exists = await getDepositByTx(nativeAsset.symbol, txid);
-          if (exists) continue;
-          if (!sig.confirmationStatus || sig.err) continue;
+          const txid = sig.signature;
           const tx = await connection.getTransaction(txid, { maxSupportedTransactionVersion: 0 });
           if (!tx || !tx.meta || tx.meta.err) continue;
           const keys = tx.transaction.message.accountKeys.map((k) =>
@@ -74,7 +72,7 @@ async function pollSol(chainCode) {
           const post = tx.meta.postBalances[index] || 0;
           const delta = (post - pre) / 1e9;
           if (delta <= 0) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: addr.id,
             chain: nativeAsset.symbol,
             txid,
@@ -82,7 +80,7 @@ async function pollSol(chainCode) {
             confirmations: config.confSol,
             status: "confirmed"
           });
-          await adjustBalance(addr.user_id, nativeAsset.symbol, delta);
+          if (inserted) await adjustBalance(addr.user_id, nativeAsset.symbol, delta);
         }
 
         for (const token of tokens) {
@@ -90,15 +88,13 @@ async function pollSol(chainCode) {
           const ata = getAssociatedTokenAddress(token.contract_address, addr.address);
           const tokenSigs = await connection.getSignaturesForAddress(ata, { limit: 100 });
           for (const sig of tokenSigs) {
-            const txid = `${sig.signature}:${token.symbol}`;
-            const exists = await getDepositByTx(token.symbol, txid);
-            if (exists) continue;
             if (!sig.confirmationStatus || sig.err) continue;
+            const txid = `${sig.signature}:${token.symbol}`;
             const tx = await connection.getTransaction(sig.signature, { maxSupportedTransactionVersion: 0 });
             if (!tx || !tx.meta || tx.meta.err) continue;
             const delta = getTokenBalanceDelta(tx, ata.toBase58(), token.contract_address);
             if (delta <= 0) continue;
-            await createDeposit({
+            const { inserted } = await createDepositIfNew({
               addressId: addr.id,
               chain: token.symbol,
               txid,
@@ -106,7 +102,7 @@ async function pollSol(chainCode) {
               confirmations: config.confSol,
               status: "confirmed"
             });
-            await adjustBalance(addr.user_id, token.symbol, delta);
+            if (inserted) await adjustBalance(addr.user_id, token.symbol, delta);
           }
         }
       } catch (error) {

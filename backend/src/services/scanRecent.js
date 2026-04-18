@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { ethers } from "ethers";
 import { PublicKey } from "@solana/web3.js";
 import { getUserAddresses } from "./walletService.js";
-import { createDeposit, getDepositByTx } from "../repositories/deposits.js";
+import { createDepositIfNew } from "../repositories/deposits.js";
 import { adjustBalance } from "../repositories/balances.js";
 import { fetchBtcJson, fetchBtcText, withEvmProvider, withSolConnection } from "./rpcProvider.js";
 import { withTronRpc, withRippleRpc } from "./rpcProvider.js";
@@ -89,11 +89,9 @@ async function scanRecentEvm(chain, addresses, lookback, result) {
         const nativeAsset = native.find((a) => a.symbol === chain) || native[0];
         if (!nativeAsset) continue;
         const txid = `${tx.hash}:${tx.to}`;
-        const exists = await getDepositByTx(nativeAsset.symbol, txid);
-        if (exists) continue;
         const amount = Number(ethers.formatEther(tx.value));
         if (amount <= 0) continue;
-        await createDeposit({
+        const { inserted } = await createDepositIfNew({
           addressId: row.id,
           chain: nativeAsset.symbol,
           txid,
@@ -101,6 +99,7 @@ async function scanRecentEvm(chain, addresses, lookback, result) {
           confirmations: 1,
           status: "confirmed"
         });
+        if (!inserted) continue;
         await adjustBalance(row.user_id, nativeAsset.symbol, amount);
         result.credited[nativeAsset.symbol] = (result.credited[nativeAsset.symbol] || 0) + 1;
       }
@@ -121,11 +120,9 @@ async function scanRecentEvm(chain, addresses, lookback, result) {
           const row = addressMap.get(String(parsed.args.to).toLowerCase());
           if (!row) continue;
           const txid = `${log.transactionHash}:${log.index}`;
-          const exists = await getDepositByTx(asset.symbol, txid);
-          if (exists) continue;
           const decimals = Number.isFinite(Number(asset.decimals)) ? Number(asset.decimals) : 18;
           const amount = Number(ethers.formatUnits(parsed.args.value, decimals));
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: row.id,
             chain: asset.symbol,
             txid,
@@ -133,6 +130,7 @@ async function scanRecentEvm(chain, addresses, lookback, result) {
             confirmations: 1,
             status: "confirmed"
           });
+          if (!inserted) continue;
           await adjustBalance(row.user_id, asset.symbol, amount);
           result.credited[asset.symbol] = (result.credited[asset.symbol] || 0) + 1;
         }
@@ -165,13 +163,11 @@ async function scanRecentUtxo(chainCode, addresses, result) {
           const out = outputs[vout];
           if (out?.scriptpubkey_address !== addr.address) continue;
           const txid = `${tx.txid}:${vout}`;
-          const exists = await getDepositByTx(chainCode, txid);
-          if (exists) continue;
           const confirmations = tx.status?.block_height ? tip - tx.status.block_height + 1 : 0;
           if (confirmations < config.confBtc) continue;
           const amount = Number(out.value || 0) / 1e8;
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: addr.id,
             chain: chainCode,
             txid,
@@ -179,6 +175,7 @@ async function scanRecentUtxo(chainCode, addresses, result) {
             confirmations,
             status: "confirmed"
           });
+          if (!inserted) continue;
           await adjustBalance(addr.user_id, chainCode, amount);
           result.credited[chainCode] = (result.credited[chainCode] || 0) + 1;
         }
@@ -203,17 +200,14 @@ async function scanRecentSol(chainCode, addresses, result) {
           limit: 100
         });
         for (const sig of sigs) {
-          const txid = sig.signature;
+          if (!sig.confirmationStatus || sig.err) continue;
           const nativeAsset = native.find((a) => a.symbol === chainCode) || native[0];
           if (!nativeAsset) continue;
-          const exists = await getDepositByTx(nativeAsset.symbol, txid);
-          if (exists) continue;
-          if (!sig.confirmationStatus || sig.err) continue;
+          const txid = sig.signature;
           const tx = await connection.getTransaction(txid, {
             maxSupportedTransactionVersion: 0
           });
-          if (!tx || !tx.meta) continue;
-          if (tx.meta.err) continue;
+          if (!tx || !tx.meta || tx.meta.err) continue;
           const keys = tx.transaction.message.accountKeys.map((k) =>
             typeof k === "string" ? k : k.toBase58()
           );
@@ -223,7 +217,7 @@ async function scanRecentSol(chainCode, addresses, result) {
           const post = tx.meta.postBalances[index] || 0;
           const delta = (post - pre) / 1e9;
           if (delta <= 0) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: addr.id,
             chain: nativeAsset.symbol,
             txid,
@@ -231,6 +225,7 @@ async function scanRecentSol(chainCode, addresses, result) {
             confirmations: config.confSol,
             status: "confirmed"
           });
+          if (!inserted) continue;
           await adjustBalance(addr.user_id, nativeAsset.symbol, delta);
           result.credited[nativeAsset.symbol] = (result.credited[nativeAsset.symbol] || 0) + 1;
         }
@@ -240,17 +235,15 @@ async function scanRecentSol(chainCode, addresses, result) {
           const ata = getAssociatedTokenAddress(token.contract_address, addr.address);
           const tokenSigs = await connection.getSignaturesForAddress(ata, { limit: 100 });
           for (const sig of tokenSigs) {
-            const txid = `${sig.signature}:${token.symbol}`;
-            const exists = await getDepositByTx(token.symbol, txid);
-            if (exists) continue;
             if (!sig.confirmationStatus || sig.err) continue;
+            const txid = `${sig.signature}:${token.symbol}`;
             const tx = await connection.getTransaction(sig.signature, {
               maxSupportedTransactionVersion: 0
             });
             if (!tx || !tx.meta || tx.meta.err) continue;
             const delta = getTokenBalanceDelta(tx, ata.toBase58(), token.contract_address);
             if (delta <= 0) continue;
-            await createDeposit({
+            const { inserted } = await createDepositIfNew({
               addressId: addr.id,
               chain: token.symbol,
               txid,
@@ -258,6 +251,7 @@ async function scanRecentSol(chainCode, addresses, result) {
               confirmations: config.confSol,
               status: "confirmed"
             });
+            if (!inserted) continue;
             await adjustBalance(addr.user_id, token.symbol, delta);
             result.credited[token.symbol] = (result.credited[token.symbol] || 0) + 1;
           }
@@ -293,9 +287,7 @@ async function scanRecentTron(chainCode, addresses, result) {
         const amount = Number(value.amount || 0) / 1e6;
         if (amount <= 0) continue;
         const txid = `${tx.txID}:${addr.address}`;
-        const exists = await getDepositByTx(nativeAsset.symbol, txid);
-        if (exists) continue;
-        await createDeposit({
+        const { inserted: insertedTrx } = await createDepositIfNew({
           addressId: addr.id,
           chain: nativeAsset.symbol,
           txid,
@@ -303,6 +295,7 @@ async function scanRecentTron(chainCode, addresses, result) {
           confirmations: config.confTron,
           status: "confirmed"
         });
+        if (!insertedTrx) continue;
         await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
         result.credited[nativeAsset.symbol] = (result.credited[nativeAsset.symbol] || 0) + 1;
       }
@@ -321,9 +314,7 @@ async function scanRecentTron(chainCode, addresses, result) {
           const amount = Number(tx.value || 0) / 10 ** decimals;
           if (amount <= 0) continue;
           const txid = `${tx.transaction_id || tx.txID}:${token.symbol}`;
-          const exists = await getDepositByTx(token.symbol, txid);
-          if (exists) continue;
-          await createDeposit({
+          const { inserted: insertedTrc20 } = await createDepositIfNew({
             addressId: addr.id,
             chain: token.symbol,
             txid,
@@ -331,6 +322,7 @@ async function scanRecentTron(chainCode, addresses, result) {
             confirmations: config.confTron,
             status: "confirmed"
           });
+          if (!insertedTrc20) continue;
           await adjustBalance(addr.user_id, token.symbol, amount);
           result.credited[token.symbol] = (result.credited[token.symbol] || 0) + 1;
         }
@@ -378,11 +370,9 @@ async function scanRecentRipple(chainCode, addresses, result) {
         if (!txid) continue;
         if (typeof tx.Amount === "string") {
           if (!nativeAsset) continue;
-          const exists = await getDepositByTx(nativeAsset.symbol, txid);
-          if (exists) continue;
           const amount = Number(tx.Amount) / 1e6;
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted: insertedXrp } = await createDepositIfNew({
             addressId: addr.id,
             chain: nativeAsset.symbol,
             txid,
@@ -390,16 +380,15 @@ async function scanRecentRipple(chainCode, addresses, result) {
             confirmations: config.confRipple,
             status: "confirmed"
           });
+          if (!insertedXrp) continue;
           await adjustBalance(addr.user_id, nativeAsset.symbol, amount);
           result.credited[nativeAsset.symbol] = (result.credited[nativeAsset.symbol] || 0) + 1;
         } else if (tx.Amount && typeof tx.Amount === "object") {
           const token = matchIssuedToken(tokens, tx.Amount);
           if (!token) continue;
-          const exists = await getDepositByTx(token.symbol, txid);
-          if (exists) continue;
           const amount = Number(tx.Amount.value || 0);
           if (amount <= 0) continue;
-          await createDeposit({
+          const { inserted: insertedXrpToken } = await createDepositIfNew({
             addressId: addr.id,
             chain: token.symbol,
             txid,
@@ -407,6 +396,7 @@ async function scanRecentRipple(chainCode, addresses, result) {
             confirmations: config.confRipple,
             status: "confirmed"
           });
+          if (!insertedXrpToken) continue;
           await adjustBalance(addr.user_id, token.symbol, amount);
           result.credited[token.symbol] = (result.credited[token.symbol] || 0) + 1;
         }

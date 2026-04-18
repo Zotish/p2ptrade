@@ -1,7 +1,7 @@
 import { config } from "../../config.js";
 import { all } from "../../db.js";
 import { getLastBlock, setLastBlock } from "../../repositories/chainSync.js";
-import { createDeposit, getDepositByTx } from "../../repositories/deposits.js";
+import { createDepositIfNew } from "../../repositories/deposits.js";
 import { adjustBalance } from "../../repositories/balances.js";
 import { ethers } from "ethers";
 import { withEvmProvider } from "../rpcProvider.js";
@@ -91,11 +91,9 @@ async function pollEvm(chain) {
         if (amount <= 0) continue;
         if (!nativeAsset) continue;
         const txid = `${tx.hash}:${tx.to}`;
-        const exists = await getDepositByTx(nativeAsset.symbol, txid);
-        if (exists) continue;
         const confirmations = latest - (tx.blockNumber || block.number) + 1;
         if (confirmations < config.confEvm) continue;
-        await createDeposit({
+        const { inserted } = await createDepositIfNew({
           addressId: row.id,
           chain: nativeAsset.symbol,
           txid,
@@ -103,7 +101,7 @@ async function pollEvm(chain) {
           confirmations,
           status: "confirmed"
         });
-        await adjustBalance(row.user_id, nativeAsset.symbol, amount);
+        if (inserted) await adjustBalance(row.user_id, nativeAsset.symbol, amount);
       }
     }
 
@@ -128,11 +126,9 @@ async function pollEvm(chain) {
           if (!row) continue;
           const amount = Number(ethers.formatUnits(parsed.args.value, decimals));
           const txid = `${log.transactionHash}:${log.index}`;
-          const exists = await getDepositByTx(asset.symbol, txid);
-          if (exists) continue;
           const confirmations = latest - log.blockNumber + 1;
           if (confirmations < config.confEvm) continue;
-          await createDeposit({
+          const { inserted } = await createDepositIfNew({
             addressId: row.id,
             chain: asset.symbol,
             txid,
@@ -140,7 +136,7 @@ async function pollEvm(chain) {
             confirmations,
             status: "confirmed"
           });
-          await adjustBalance(row.user_id, asset.symbol, amount);
+          if (inserted) await adjustBalance(row.user_id, asset.symbol, amount);
         }
       } catch (error) {
         console.error(`${chain} watcher token scan failed for ${asset.symbol}:`, error.message);
