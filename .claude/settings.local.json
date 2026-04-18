@@ -33,7 +33,22 @@
       "Bash(echo \"VITE_API_URL=https://p2ptrade-production.up.railway.app:*)",
       "Bash(curl -s \"https://p2ptrade-production.up.railway.app/health\")",
       "Bash(curl -s --max-time 15 \"https://p2ptrade-production.up.railway.app/health\")",
-      "Bash(curl -v --max-time 20 \"https://p2ptrade-production.up.railway.app/health\")"
+      "Bash(curl -v --max-time 20 \"https://p2ptrade-production.up.railway.app/health\")",
+      "Bash(node --input-type=module)",
+      "Bash(node --check src/repositories/balances.js)",
+      "Bash(node --check src/repositories/escrows.js)",
+      "Bash(node --check src/services/escrow.js)",
+      "Bash(node --check src/repositories/orders.js)",
+      "Bash(node --check src/repositories/auditLog.js)",
+      "Bash(node --check src/routes/whitelist.js)",
+      "Bash(node --check src/routes/orders.js)",
+      "Bash(node --check src/middleware/rateLimiter.js)",
+      "Bash(node --check src/services/backupScheduler.js)",
+      "Bash(node --check src/services/pricing.js)",
+      "Bash(node --check src/routes/offers.js)",
+      "Bash(node --check src/repositories/ratings.js)",
+      "Bash(node --check src/repositories/ordersMine.js)",
+      "Bash(node --check src/migrations.js)"
     ]
   }
 }

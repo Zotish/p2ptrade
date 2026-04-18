@@ -55,6 +55,12 @@ export default function Trade() {
   const [assets, setAssets] = useState([]);
   const [countries, setCountries] = useState([]);
   const [paymentProviders, setPaymentProviders] = useState([]);
+  // ── Rating modal ────────────────────────────────────────────────
+  const [pendingRatingOrder, setPendingRatingOrder] = useState(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [ratingError, setRatingError] = useState("");
   const PAYMENT_OPTIONS = [
     { id: "mobile_money", label: "Mobile Money" },
     { id: "bank_transfer", label: "Bank Transfer" },
@@ -192,6 +198,21 @@ export default function Trade() {
     }, 30_000);
     return () => clearInterval(id);
   }, [user, fiatFilter]);
+
+  // ── Auto-detect unrated released orders ────────────────────────
+  useEffect(() => {
+    if (!pendingRatingOrder) {
+      const unrated = buyerOrders.find(
+        (o) => o.status === "released" && !o.has_rated
+      );
+      if (unrated) {
+        setPendingRatingOrder(unrated);
+        setRatingStars(0);
+        setRatingComment("");
+        setRatingError("");
+      }
+    }
+  }, [buyerOrders]);
 
   // ── WebSocket real-time events ──────────────────────────────
   useEffect(() => {
@@ -554,6 +575,32 @@ export default function Trade() {
     setChatError("Copy not supported");
   }
 
+  async function submitRating() {
+    if (!ratingStars || ratingStars < 1 || ratingStars > 5) return;
+    setRatingLoading(true);
+    setRatingError("");
+    try {
+      const res = await apiFetch(`/orders/${pendingRatingOrder.id}/rate`, {
+        method: "POST",
+        body: JSON.stringify({ stars: ratingStars, comment: ratingComment })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit rating");
+      // Mark as rated in local state so the modal won't reopen
+      setBuyerOrders((prev) =>
+        prev.map((o) => (o.id === pendingRatingOrder.id ? { ...o, has_rated: true } : o))
+      );
+      setPendingRatingOrder(null);
+      setRatingStars(0);
+      setRatingComment("");
+      showToast("⭐ Thank you for your rating!", "success");
+    } catch (err) {
+      setRatingError(err.message || "Failed to submit rating");
+    } finally {
+      setRatingLoading(false);
+    }
+  }
+
   const filteredConversations = chatConversations.filter((c) => {
     if (!chatSearch) return true;
     const label = `${c.otherUser?.email || ""} ${c.otherUser?.handle || ""} ${c.otherUser?.id || ""} ${c.id || ""}`.toLowerCase();
@@ -578,6 +625,72 @@ export default function Trade() {
           </div>
         ))}
       </div>
+
+      {/* ── Mandatory Rating Modal — no close button, must rate ── */}
+      {pendingRatingOrder && (
+        <div className="modal-backdrop rating-backdrop">
+          <div className="modal rating-modal">
+            <div className="rating-modal-header">
+              <span className="rating-modal-icon">⭐</span>
+              <h3>Rate Your Trade</h3>
+              <p className="muted">
+                Order #{pendingRatingOrder.id.slice(0, 8)} ·{" "}
+                {pendingRatingOrder.amount_token} {pendingRatingOrder.offer?.token}
+              </p>
+            </div>
+
+            <p className="rating-prompt">How was your experience with the seller?</p>
+
+            {/* Star selector */}
+            <div className="rating-stars-select">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`rating-star-btn ${ratingStars >= n ? "active" : ""}`}
+                  onClick={() => setRatingStars(n)}
+                  aria-label={`${n} star`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {ratingStars > 0 && (
+              <p className="rating-label muted small">
+                {["", "😞 Poor", "😐 Fair", "🙂 Good", "😊 Very Good", "🤩 Excellent!"][ratingStars]}
+              </p>
+            )}
+
+            {/* Comment */}
+            <label className="rating-comment-label">
+              Comment <span className="muted small">(optional)</span>
+              <textarea
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                placeholder="Tell others about your experience…"
+                rows={3}
+                maxLength={300}
+                className="rating-textarea"
+              />
+            </label>
+
+            {ratingError && <p className="error">{ratingError}</p>}
+
+            <div className="auth-actions">
+              <button
+                className="cta"
+                disabled={ratingStars === 0 || ratingLoading}
+                onClick={submitRating}
+              >
+                {ratingLoading ? "Submitting…" : "Submit Rating"}
+              </button>
+            </div>
+            <p className="muted small rating-required-note">
+              ⚠️ Rating is required to complete this trade.
+            </p>
+          </div>
+        </div>
+      )}
 
       <section className="hero compact">
         <div>

@@ -5,32 +5,61 @@ import { requireAuth } from "../auth.js";
 import { get as dbGet } from "../db.js";
 
 async function getSellerStats(sellerUserId) {
-  const row = await dbGet(
-    `select
-      count(*) as total,
-      sum(case when o.status = 'released' then 1 else 0 end) as completed,
-      sum(case when o.status in ('payment_rejected','disputed') then 1 else 0 end) as rejected,
-      sum(case when o.status = 'disputed' then 1 else 0 end) as disputed
-     from orders o
-     join offers of on of.id = o.offer_id
-     where of.maker_user_id = ?`,
-    [sellerUserId]
-  );
-  const total     = Number(row?.total || 0);
-  const completed = Number(row?.completed || 0);
-  const rejected  = Number(row?.rejected || 0);
-  const disputed  = Number(row?.disputed || 0);
-  const rate      = total > 0 ? Math.round((completed / total) * 100) : 100;
-  // 5-star rating: starts at 5, -0.5 per rejection, min 1
-  const stars = Math.max(1, Math.min(5, 5 - (rejected * 0.5))).toFixed(1);
-  return { total, completed, rejected, disputed, completionRate: rate, stars: Number(stars) };
+  const [orderRow, ratingRow] = await Promise.all([
+    dbGet(
+      `select
+        count(*) as total,
+        sum(case when o.status = 'released' then 1 else 0 end) as completed,
+        sum(case when o.status in ('payment_rejected','disputed') then 1 else 0 end) as rejected,
+        sum(case when o.status = 'disputed' then 1 else 0 end) as disputed
+       from orders o
+       join offers of on of.id = o.offer_id
+       where of.maker_user_id = ?`,
+      [sellerUserId]
+    ),
+    dbGet(
+      `select count(*) as total_ratings, avg(stars) as avg_stars
+       from ratings
+       where rated_user_id = ?`,
+      [sellerUserId]
+    )
+  ]);
+
+  const total        = Number(orderRow?.total || 0);
+  const completed    = Number(orderRow?.completed || 0);
+  const rejected     = Number(orderRow?.rejected || 0);
+  const disputed     = Number(orderRow?.disputed || 0);
+  const rate         = total > 0 ? Math.round((completed / total) * 100) : 100;
+  const totalRatings = Number(ratingRow?.total_ratings || 0);
+  const avgStars     = ratingRow?.avg_stars ? Number(Number(ratingRow.avg_stars).toFixed(1)) : null;
+
+  // Use real average if ratings exist; otherwise fall back to rejection-based score
+  const stars = avgStars !== null
+    ? avgStars
+    : Number(Math.max(1, Math.min(5, 5 - rejected * 0.5)).toFixed(1));
+
+  return { total, completed, rejected, disputed, completionRate: rate, stars, totalRatings };
 }
 
 async function enrichOffersWithStats(offers) {
-  return Promise.all(offers.map(async (offer) => ({
-    ...offer,
-    sellerStats: await getSellerStats(offer.maker_user_id)
-  })));
+  return Promise.all(offers.map(async (offer) => {
+    const [stats, sellerRow] = await Promise.all([
+      getSellerStats(offer.maker_user_id),
+      dbGet(
+        "select handle, profile_name, profile_image_url from users where id = ?",
+        [offer.maker_user_id]
+      )
+    ]);
+    return {
+      ...offer,
+      sellerStats: stats,
+      sellerProfile: {
+        handle: sellerRow?.handle || null,
+        profileName: sellerRow?.profile_name || null,
+        profileImageUrl: sellerRow?.profile_image_url || null
+      }
+    };
+  }));
 }
 
 export const offersRouter = Router();

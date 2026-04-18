@@ -11,6 +11,7 @@ import { createMessage, listMessages } from "../repositories/messages.js";
 import { emitToUser } from "../socket.js";
 import { logAudit } from "../repositories/auditLog.js";
 import { orderCreateLimiter, orderActionLimiter } from "../middleware/rateLimiter.js";
+import { createRating, getRatingByOrder } from "../repositories/ratings.js";
 
 export const ordersRouter = Router();
 
@@ -368,6 +369,46 @@ ordersRouter.post("/:id/release", requireAuth, orderActionLimiter, async (req, r
     });
 
     res.json({ order: updated, escrow });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── Buyer rates the seller after order released ───────────────────
+ordersRouter.post("/:id/rate", requireAuth, orderActionLimiter, async (req, res) => {
+  try {
+    const { stars, comment } = req.body || {};
+    const parsedStars = Number(stars);
+    if (!Number.isInteger(parsedStars) || parsedStars < 1 || parsedStars > 5) {
+      return res.status(400).json({ error: "Stars must be an integer between 1 and 5" });
+    }
+
+    const order = await getOrderById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.buyer_user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only the buyer can rate this order" });
+    }
+    if (order.status !== "released") {
+      return res.status(400).json({ error: "Order must be released before rating" });
+    }
+
+    const existing = await getRatingByOrder(order.id);
+    if (existing) {
+      return res.status(409).json({ error: "You already rated this order" });
+    }
+
+    const offer = await getOfferById(order.offer_id);
+    if (!offer) return res.status(404).json({ error: "Offer not found" });
+
+    const rating = await createRating({
+      orderId: order.id,
+      raterUserId: req.user.id,
+      ratedUserId: offer.maker_user_id,
+      stars: parsedStars,
+      comment: comment ? String(comment).slice(0, 300) : null
+    });
+
+    res.status(201).json({ rating });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -392,4 +392,20 @@ export async function runMigrations() {
     "create unique index if not exists whitelist_user_chain_addr_idx on withdrawal_whitelist(user_id, chain, address)",
     []
   );
+
+  // ── Trade ratings ─────────────────────────────────────────────
+  await run(
+    `create table if not exists ratings (
+      id text primary key,
+      order_id text not null unique,
+      rater_user_id text not null,
+      rated_user_id text not null,
+      stars integer not null,
+      comment text,
+      created_at text not null default CURRENT_TIMESTAMP
+    )`,
+    []
+  );
+  await run("create index if not exists ratings_rated_user_idx on ratings(rated_user_id)", []);
+  await run("create index if not exists ratings_rater_user_idx on ratings(rater_user_id)", []);
 }

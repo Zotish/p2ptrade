@@ -1,8 +1,8 @@
 import { all } from "../db.js";
 
-function mapOrder(row) {
+function mapOrder(row, { includeBuyerRating = false } = {}) {
   if (!row) return row;
-  return {
+  const mapped = {
     ...row,
     offer: {
       token: row.offer_token,
@@ -28,14 +28,18 @@ function mapOrder(row) {
       status: row.pay_status
     } : null
   };
+  if (includeBuyerRating) {
+    mapped.has_rated = row.has_rated === true || row.has_rated === 1 || row.has_rated === "t" || row.has_rated === "true";
+  }
+  return mapped;
 }
 
-const ORDER_JOINS = `
+const BASE_JOINS = `
   left join payments p on p.order_id = o.id
   left join users b on b.id = o.buyer_user_id
 `;
 
-const ORDER_COLUMNS = `
+const BASE_COLUMNS = `
   o.*,
   of.token           as offer_token,
   of.fiat            as offer_fiat,
@@ -60,16 +64,19 @@ export async function listOrdersByBuyer(userId, fiat) {
   const conditions = ["o.buyer_user_id = ?"];
   const values = [userId];
   if (fiat) { conditions.push("of.fiat = ?"); values.push(fiat); }
+  // Include rating check: has this buyer already rated each order?
   const sql = `
-    select ${ORDER_COLUMNS}
+    select ${BASE_COLUMNS},
+      case when rt.id is not null then true else false end as has_rated
     from orders o
     join offers of on of.id = o.offer_id
-    ${ORDER_JOINS}
+    ${BASE_JOINS}
+    left join ratings rt on rt.order_id = o.id and rt.rater_user_id = o.buyer_user_id
     where ${conditions.join(" and ")}
     order by o.created_at desc
   `;
   const rows = await all(sql, values);
-  return rows.map(mapOrder);
+  return rows.map((r) => mapOrder(r, { includeBuyerRating: true }));
 }
 
 export async function listOrdersBySeller(userId, fiat) {
@@ -77,13 +84,13 @@ export async function listOrdersBySeller(userId, fiat) {
   const values = [userId];
   if (fiat) { conditions.push("of.fiat = ?"); values.push(fiat); }
   const sql = `
-    select ${ORDER_COLUMNS}
+    select ${BASE_COLUMNS}
     from orders o
     join offers of on of.id = o.offer_id
-    ${ORDER_JOINS}
+    ${BASE_JOINS}
     where ${conditions.join(" and ")}
     order by o.created_at desc
   `;
   const rows = await all(sql, values);
-  return rows.map(mapOrder);
+  return rows.map((r) => mapOrder(r));
 }
