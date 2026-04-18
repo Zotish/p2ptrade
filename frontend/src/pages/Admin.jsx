@@ -94,6 +94,8 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
   const [disputes, setDisputes] = useState([]);
+  const [adminOffers, setAdminOffers] = useState([]);
+  const [adminOffersLoading, setAdminOffersLoading] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [chainForm, setChainForm] = useState(EMPTY_CHAIN);
@@ -152,6 +154,31 @@ export default function Admin() {
       loadDisputes();
     } catch (err) {
       setError(err.message || "Failed to load admin data");
+    }
+  }
+
+  async function loadAdminOffers() {
+    setAdminOffersLoading(true);
+    try {
+      const res = await apiFetch("/admin/offers");
+      const data = await res.json();
+      if (res.ok) setAdminOffers(data.offers || []);
+    } catch { /* ignore */ }
+    finally { setAdminOffersLoading(false); }
+  }
+
+  async function adminUpdateOfferStatus(offerId, status) {
+    try {
+      const res = await apiFetch(`/admin/offers/${offerId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setAdminOffers(prev => prev.map(o => o.id === offerId ? { ...o, status } : o));
+      setStatus(`Offer ${offerId.slice(0,8)} status → ${status}`);
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -1324,6 +1351,51 @@ export default function Admin() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Offers Management ── */}
+      <div className="wallet-card">
+        <div className="wallet-head">
+          <div>
+            <p className="kicker">Offer Management</p>
+            <h3>All Offers</h3>
+            <p className="muted">View and moderate seller offers on the platform.</p>
+          </div>
+          <button className="ghost" onClick={loadAdminOffers} disabled={adminOffersLoading}>
+            {adminOffersLoading ? "Loading..." : "Load Offers"}
+          </button>
+        </div>
+        {adminOffers.length > 0 && (
+          <div className="market-table">
+            <div className="market-row market-head">
+              <span>Seller</span>
+              <span>Pair</span>
+              <span>Range</span>
+              <span>Status</span>
+              <span>Actions</span>
+            </div>
+            {(Array.isArray(adminOffers) ? adminOffers : []).map((offer) => (
+              <div className="market-row" key={offer.id}>
+                <span>{offer.maker_email || offer.maker_handle || offer.maker_user_id?.slice(0,8)}</span>
+                <span>{offer.token}/{offer.fiat} · #{offer.id.slice(0,8)}</span>
+                <span className="muted small">{offer.min_amount}–{offer.max_amount}</span>
+                <span><span className={`status-badge status-${offer.status}`}>{offer.status}</span></span>
+                <span className="inline-actions">
+                  {offer.status !== "active" && (
+                    <button className="ghost" onClick={() => adminUpdateOfferStatus(offer.id, "active")}>Activate</button>
+                  )}
+                  {offer.status === "active" && (
+                    <button className="ghost" onClick={() => adminUpdateOfferStatus(offer.id, "paused")}>Pause</button>
+                  )}
+                  {offer.status !== "deleted" && (
+                    <button className="ghost" onClick={() => adminUpdateOfferStatus(offer.id, "deleted")}>Delete</button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {adminOffers.length === 0 && <p className="muted">Click "Load Offers" to view all platform offers.</p>}
       </div>
 
       {/* ── Disputes ── */}

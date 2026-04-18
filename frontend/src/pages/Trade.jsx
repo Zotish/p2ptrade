@@ -55,6 +55,9 @@ export default function Trade() {
   const [assets, setAssets] = useState([]);
   const [countries, setCountries] = useState([]);
   const [paymentProviders, setPaymentProviders] = useState([]);
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState("");
+  // ── Offer edit state ────────────────────────────────────────────
+  const [editingOffer, setEditingOffer] = useState(null);
   // ── Rating modal ────────────────────────────────────────────────
   const [pendingRatingOrder, setPendingRatingOrder] = useState(null);
   const [ratingStars, setRatingStars] = useState(0);
@@ -95,7 +98,7 @@ export default function Trade() {
   }, []);
 
   useEffect(() => {
-    apiFetch(`/offers?country=${country}&token=${token}&fiat=${fiatFilter}`, {
+    apiFetch(`/offers?country=${country}&token=${token}&fiat=${fiatFilter}&paymentMethod=${paymentMethodFilter}`, {
       cache: "no-store"
     })
       .then(async (r) => {
@@ -115,7 +118,7 @@ export default function Trade() {
         setFxRate(null);
         setMarketError(err.message || "Failed to load offers");
       });
-  }, [country, token, fiatFilter]);
+  }, [country, token, fiatFilter, paymentMethodFilter]);
 
   useEffect(() => {
     if (!fiats.length || !selectedCountry) return;
@@ -601,6 +604,57 @@ export default function Trade() {
     }
   }
 
+  async function pauseOffer(offerId) {
+    try {
+      const res = await apiFetch(`/offers/${offerId}/status`, { method: "PATCH", body: JSON.stringify({ status: "paused" }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to pause");
+      setMyOffers(prev => prev.map(o => o.id === offerId ? { ...o, status: "paused" } : o));
+      showToast("Offer paused.", "info");
+    } catch (err) { showToast("Failed: " + (err.message || "Pause failed"), "error"); }
+  }
+
+  async function activateOffer(offerId) {
+    try {
+      const res = await apiFetch(`/offers/${offerId}/status`, { method: "PATCH", body: JSON.stringify({ status: "active" }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to activate");
+      setMyOffers(prev => prev.map(o => o.id === offerId ? { ...o, status: "active" } : o));
+      showToast("Offer activated.", "success");
+    } catch (err) { showToast("Failed: " + (err.message || "Activate failed"), "error"); }
+  }
+
+  async function deleteMyOffer(offerId) {
+    if (!window.confirm("Delete this offer? This cannot be undone.")) return;
+    try {
+      const res = await apiFetch(`/offers/${offerId}`, { method: "DELETE" });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed to delete"); }
+      setMyOffers(prev => prev.filter(o => o.id !== offerId));
+      showToast("Offer deleted.", "info");
+    } catch (err) { showToast("Failed: " + (err.message || "Delete failed"), "error"); }
+  }
+
+  async function saveEditOffer() {
+    if (!editingOffer) return;
+    try {
+      const res = await apiFetch(`/offers/${editingOffer.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          minAmount: Number(editingOffer.min_amount),
+          maxAmount: Number(editingOffer.max_amount),
+          premiumPercent: Number(editingOffer.premium_percent || 0),
+          paymentMethods: editingOffer.payment_methods,
+          paymentDetails: editingOffer.payment_details
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update");
+      setMyOffers(prev => prev.map(o => o.id === editingOffer.id ? data.offer : o));
+      setEditingOffer(null);
+      showToast("Offer updated.", "success");
+    } catch (err) { showToast("Failed: " + (err.message || "Update failed"), "error"); }
+  }
+
   const filteredConversations = chatConversations.filter((c) => {
     if (!chatSearch) return true;
     const label = `${c.otherUser?.email || ""} ${c.otherUser?.handle || ""} ${c.otherUser?.id || ""} ${c.id || ""}`.toLowerCase();
@@ -692,6 +746,33 @@ export default function Trade() {
         </div>
       )}
 
+      {editingOffer && (
+        <div className="modal-backdrop" onClick={() => setEditingOffer(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Edit Offer</h3>
+            <p className="muted">{editingOffer.token} &rarr; {editingOffer.fiat}</p>
+            <div className="pay-grid">
+              <label>Min Amount ({editingOffer.fiat})
+                <input type="number" value={editingOffer.min_amount}
+                  onChange={e => setEditingOffer(prev => ({...prev, min_amount: e.target.value}))} />
+              </label>
+              <label>Max Amount ({editingOffer.fiat})
+                <input type="number" value={editingOffer.max_amount}
+                  onChange={e => setEditingOffer(prev => ({...prev, max_amount: e.target.value}))} />
+              </label>
+              <label>Premium (%)
+                <input type="number" value={editingOffer.premium_percent || 0}
+                  onChange={e => setEditingOffer(prev => ({...prev, premium_percent: e.target.value}))} />
+              </label>
+            </div>
+            <div className="auth-actions">
+              <button className="ghost" onClick={() => setEditingOffer(null)}>Cancel</button>
+              <button className="cta" onClick={saveEditOffer}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="hero compact">
         <div>
           <p className="kicker">Trade</p>
@@ -747,6 +828,15 @@ export default function Trade() {
                 {f.code} - {f.name}
               </option>
             ))}
+          </select>
+        </label>
+        <label>
+          Payment Method
+          <select value={paymentMethodFilter} onChange={(e) => setPaymentMethodFilter(e.target.value)}>
+            <option value="">All methods</option>
+            <option value="mobile_money">Mobile Money</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="card">Card</option>
           </select>
         </label>
       </section>
@@ -1140,7 +1230,20 @@ export default function Trade() {
             <div className="grid">
               {myOffers.length === 0 && <div className="empty">No offers yet.</div>}
               {(Array.isArray(myOffers) ? myOffers : []).map((offer) => (
-                <OfferCard key={offer.id} offer={offer} />
+                <div key={offer.id} className="my-offer-wrapper">
+                  <OfferCard offer={offer} />
+                  <div className="my-offer-actions">
+                    {offer.status === "active"
+                      ? <button className="ghost small-btn" onClick={() => pauseOffer(offer.id)}>Pause</button>
+                      : offer.status === "paused"
+                        ? <button className="ghost small-btn" onClick={() => activateOffer(offer.id)}>Activate</button>
+                        : null
+                    }
+                    <button className="ghost small-btn" onClick={() => setEditingOffer(offer)}>Edit</button>
+                    <button className="ghost small-btn danger" onClick={() => deleteMyOffer(offer.id)}>Delete</button>
+                  </div>
+                  {offer.status === "paused" && <p className="muted small" style={{paddingLeft:"12px"}}>Paused — not visible to buyers</p>}
+                </div>
               ))}
             </div>
           )}

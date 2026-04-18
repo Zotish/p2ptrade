@@ -598,6 +598,67 @@ adminRouter.post("/disputes/:id/refund", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: Offer Management ────────────────────────────────────
+adminRouter.get("/offers", requireAdmin, async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+    const conditions = [];
+    const values = [];
+    if (status) { conditions.push("o.status = ?"); values.push(status); }
+    values.push(Number(limit), Number(offset));
+    const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
+    const offers = await dbAllTop(
+      `select o.*, u.email as maker_email, u.handle as maker_handle
+       from offers o
+       left join users u on u.id = o.maker_user_id
+       ${where}
+       order by o.created_at desc
+       limit ? offset ?`,
+      values
+    );
+    res.json({ offers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+adminRouter.patch("/offers/:id/status", requireAdmin, async (req, res) => {
+  const { status } = req.body || {};
+  if (!["active", "paused", "deleted"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+  try {
+    await run("update offers set status = ? where id = ?", [status, req.params.id]);
+    await logAudit({
+      actorId: req.user.id, actorEmail: req.user.email,
+      action: "update_offer_status",
+      targetId: req.params.id, targetType: "offer",
+      meta: { status },
+      ip: req.ip
+    });
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+adminRouter.get("/users/:id/orders", requireAdmin, async (req, res) => {
+  try {
+    const orders = await dbAllTop(
+      `select o.*, of.token as offer_token, of.fiat as offer_fiat
+       from orders o
+       join offers of on of.id = o.offer_id
+       where o.buyer_user_id = ? or of.maker_user_id = ?
+       order by o.created_at desc
+       limit 100`,
+      [req.params.id, req.params.id]
+    );
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 function mapChainFields(body) {
   const out = {};
   if (body.code !== undefined) out.code = String(body.code).toUpperCase();

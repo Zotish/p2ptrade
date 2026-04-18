@@ -1,7 +1,7 @@
 import { all, get, run } from "../db.js";
 import { randomUUID } from "node:crypto";
 
-export async function listOffers({ country, token, fiat }) {
+export async function listOffers({ country, token, fiat, paymentMethod }) {
   const conditions = [];
   const values = [];
 
@@ -17,8 +17,13 @@ export async function listOffers({ country, token, fiat }) {
     conditions.push(`fiat = ?`);
     values.push(fiat);
   }
+  if (paymentMethod) {
+    conditions.push(`payment_methods like ?`);
+    values.push(`%${paymentMethod}%`);
+  }
+  conditions.push(`status = 'active'`);
 
-  const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
+  const where = `where ${conditions.join(" and ")}`;
   const sql = `select * from offers ${where} order by created_at desc`;
   const rows = await all(sql, values);
   return rows.map((row) => sanitizeOffer(deserializeOffer(row)));
@@ -103,4 +108,31 @@ function deserializeOffer(row) {
 function sanitizeOffer(offer) {
   const { payment_details, ...rest } = offer || {};
   return rest;
+}
+
+export async function updateOfferStatus(id, status, makerUserId) {
+  await run(
+    "update offers set status = ? where id = ? and maker_user_id = ?",
+    [status, id, makerUserId]
+  );
+  return getOfferById(id);
+}
+
+export async function updateOffer(id, payload, makerUserId) {
+  const { minAmount, maxAmount, premiumPercent, priceUsd, priceFiat, paymentMethods, paymentDetails } = payload;
+  await run(
+    `update offers set
+       min_amount = ?, max_amount = ?, premium_percent = ?,
+       price_usd = ?, price_fiat = ?,
+       payment_methods = ?, payment_details = ?
+     where id = ? and maker_user_id = ?`,
+    [
+      minAmount, maxAmount, premiumPercent,
+      priceUsd, priceFiat,
+      JSON.stringify(paymentMethods || []),
+      paymentDetails ? JSON.stringify(paymentDetails) : null,
+      id, makerUserId
+    ]
+  );
+  return getOfferById(id);
 }

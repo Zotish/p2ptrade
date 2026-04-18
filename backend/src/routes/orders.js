@@ -4,6 +4,7 @@ import { createOrder, getOrderById, updateOrderStatus } from "../repositories/or
 import { listOrdersByBuyer, listOrdersBySeller } from "../repositories/ordersMine.js";
 import { getOfferById } from "../repositories/offers.js";
 import { config } from "../config.js";
+
 import { requireAuth } from "../auth.js";
 import { createPayment, getPaymentByOrder, updatePaymentStatus } from "../repositories/payments.js";
 import { applyTradeFee } from "../services/tradeFees.js";
@@ -12,6 +13,14 @@ import { emitToUser } from "../socket.js";
 import { logAudit } from "../repositories/auditLog.js";
 import { orderCreateLimiter, orderActionLimiter } from "../middleware/rateLimiter.js";
 import { createRating, getRatingByOrder } from "../repositories/ratings.js";
+import {
+  sendOrderCreatedEmail,
+  sendPaymentSubmittedEmail,
+  sendOrderReleasedEmail,
+  sendPaymentRejectedEmail,
+  sendDisputeRaisedEmail
+} from "../services/emailService.js";
+import { getUserById } from "../repositories/users.js";
 
 export const ordersRouter = Router();
 
@@ -60,6 +69,21 @@ ordersRouter.post("/", requireAuth, orderCreateLimiter, async (req, res) => {
       expiresAt
     });
 
+    // Email notification to seller (fire-and-forget)
+    getOfferById(offerId).then(async (off) => {
+      if (!off) return;
+      const seller = await getUserById(off.maker_user_id);
+      if (seller?.email) {
+        sendOrderCreatedEmail({
+          sellerEmail: seller.email,
+          orderId: order.id,
+          amountFiat: parsedFiat,
+          fiat: off.fiat,
+          token: off.token,
+          buyerHandle: null
+        }).catch(() => {});
+      }
+    }).catch(() => {});
     res.status(201).json({ order });
   } catch (error) {
     res.status(400).json({ error: error.message || "Unable to reserve escrow" });
@@ -199,6 +223,19 @@ ordersRouter.post("/:id/pay", requireAuth, orderActionLimiter, async (req, res) 
       });
     }
 
+    getUserById(offer?.maker_user_id).then(seller => {
+      if (seller?.email) {
+        sendPaymentSubmittedEmail({
+          sellerEmail: seller.email,
+          orderId: order.id,
+          amountFiat: order.amount_fiat,
+          fiat: offer.fiat,
+          method: payment?.method,
+          reference: payment?.reference
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
     res.json({ order: updated, payment });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -237,6 +274,17 @@ ordersRouter.post("/:id/confirm", requireAuth, orderActionLimiter, async (req, r
       token: offer.token
     });
 
+    getUserById(order.buyer_user_id).then(buyer => {
+      if (buyer?.email) {
+        sendOrderReleasedEmail({
+          buyerEmail: buyer.email,
+          orderId: order.id,
+          amountToken: order.amount_token,
+          token: offer.token
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
     res.json({ order: updated, escrow });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -273,6 +321,17 @@ ordersRouter.post("/:id/reject", requireAuth, orderActionLimiter, async (req, re
       amountFiat: order.amount_fiat,
       fiat: offer.fiat
     });
+
+    getUserById(order.buyer_user_id).then(buyer => {
+      if (buyer?.email) {
+        sendPaymentRejectedEmail({
+          buyerEmail: buyer.email,
+          orderId: order.id,
+          amountFiat: order.amount_fiat,
+          fiat: offer?.fiat
+        }).catch(() => {});
+      }
+    }).catch(() => {});
 
     res.json({ order: updated });
   } catch (error) {
@@ -313,6 +372,19 @@ ordersRouter.post("/:id/dispute", requireAuth, orderActionLimiter, async (req, r
         reason: trimmedReason || "No reason provided"
       });
     }
+
+    Promise.all([
+      offer ? getUserById(offer.maker_user_id) : Promise.resolve(null),
+    ]).then(([seller]) => {
+      sendDisputeRaisedEmail({
+        sellerEmail: seller?.email,
+        adminEmail: config.adminEmail || null,
+        orderId: order.id,
+        reason: trimmedReason,
+        amountFiat: order.amount_fiat,
+        fiat: offer?.fiat
+      }).catch(() => {});
+    }).catch(() => {});
 
     res.json({ order: updated });
   } catch (error) {

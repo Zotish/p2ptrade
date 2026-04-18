@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getMarketPrice, getFxRates } from "../services/pricing.js";
-import { createOffer, listOffers, listOffersByMaker, getOfferById } from "../repositories/offers.js";
+import { createOffer, listOffers, listOffersByMaker, getOfferById, updateOfferStatus, updateOffer } from "../repositories/offers.js";
 import { requireAuth } from "../auth.js";
 import { get as dbGet } from "../db.js";
 
@@ -65,10 +65,10 @@ async function enrichOffersWithStats(offers) {
 export const offersRouter = Router();
 
 offersRouter.get("/", async (req, res) => {
-  const { country, token, fiat } = req.query;
+  const { country, token, fiat, paymentMethod } = req.query;
   try {
     const price = await getMarketPrice(token || "USDT");
-    const offers = await listOffers({ country, token, fiat });
+    const offers = await listOffers({ country, token, fiat, paymentMethod });
     const fx = await getFxRates();
     const rate = fiat && fiat !== "USD" ? fx[fiat] : 1;
     res.set("Cache-Control", "no-store");
@@ -76,6 +76,73 @@ offersRouter.get("/", async (req, res) => {
   } catch (error) {
     res.set("Cache-Control", "no-store");
     res.status(502).json({ error: error.message });
+  }
+});
+
+// Seller pauses/activates their offer
+offersRouter.patch("/:id/status", requireAuth, async (req, res) => {
+  const { status } = req.body || {};
+  if (!["active", "paused"].includes(status)) {
+    return res.status(400).json({ error: "Status must be 'active' or 'paused'" });
+  }
+  try {
+    const offer = await updateOfferStatus(req.params.id, status, req.user.id);
+    if (!offer) return res.status(404).json({ error: "Offer not found" });
+    res.json({ offer });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Seller deletes (soft) their offer
+offersRouter.delete("/:id", requireAuth, async (req, res) => {
+  try {
+    const offer = await updateOfferStatus(req.params.id, "deleted", req.user.id);
+    if (!offer) return res.status(404).json({ error: "Offer not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Seller edits their offer
+offersRouter.patch("/:id", requireAuth, async (req, res) => {
+  const { minAmount, maxAmount, premiumPercent, paymentMethods, paymentDetails } = req.body || {};
+  if (minAmount == null || maxAmount == null) {
+    return res.status(400).json({ error: "minAmount and maxAmount required" });
+  }
+  try {
+    let price, fx;
+    // get the existing offer for token/fiat
+    const existing = await getOfferById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Offer not found" });
+    if (existing.maker_user_id !== req.user.id) return res.status(403).json({ error: "Not your offer" });
+
+    price = await getMarketPrice(existing.token);
+    fx = await getFxRates();
+    const rate = fx[existing.fiat];
+    if (!rate) return res.status(400).json({ error: `FX rate not available for ${existing.fiat}` });
+
+    const premium = Number(premiumPercent ?? existing.premium_percent ?? 0);
+    const priceUsd = Number(price.usd);
+    const priceFiat = Number((priceUsd * rate * (1 + premium / 100)).toFixed(4));
+
+    const details = typeof paymentDetails === "object" && paymentDetails
+      ? normalizePaymentDetails(paymentDetails)
+      : existing.payment_details;
+
+    const updated = await updateOffer(req.params.id, {
+      minAmount: Number(minAmount),
+      maxAmount: Number(maxAmount),
+      premiumPercent: premium,
+      priceUsd,
+      priceFiat,
+      paymentMethods: Array.isArray(paymentMethods) ? paymentMethods : existing.payment_methods,
+      paymentDetails: details
+    }, req.user.id);
+    res.json({ offer: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

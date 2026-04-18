@@ -7,8 +7,9 @@ import { timingSafeEqual } from "node:crypto";
 import { comparePassword, getUserRole, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "../auth.js";
 import { createUser, getUserByEmail, setVerification, verifyUserByCode, updateUserProfile, updateUserPassword, getUserById, updateUserLastSeen } from "../repositories/users.js";
 import { config } from "../config.js";
-import { sendVerificationEmail } from "../services/emailService.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/emailService.js";
 import { authLimiter, signupLimiter, verifyLimiter } from "../middleware/rateLimiter.js";
+import { run } from "../db.js";
 
 export const authRouter = Router();
 
@@ -122,6 +123,25 @@ authRouter.post("/login", authLimiter, async (req, res) => {
   if (!user.is_verified) return res.status(403).json({ error: "Email not verified" });
   const ok = await comparePassword(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+  // If user has 2FA enabled, verify TOTP code
+  if (user.totp_enabled) {
+    const { totpCode } = req.body || {};
+    if (!totpCode) {
+      return res.status(403).json({ error: "2FA code required", requires2fa: true });
+    }
+    const { createRequire } = await import("node:module");
+    const _require = createRequire(import.meta.url);
+    const speakeasy = _require("speakeasy");
+    const valid = speakeasy.totp.verify({
+      secret: user.totp_secret,
+      encoding: "base32",
+      token: String(totpCode).replace(/\s/g, ""),
+      window: 1
+    });
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid 2FA code", requires2fa: true });
+    }
+  }
   const role = getUserRole(user);
   const payload = { id: user.id, email: user.email, role };
   const { access, refresh } = setAuthCookies(res, payload);
@@ -306,6 +326,50 @@ authRouter.patch("/profile", async (req, res) => {
     });
   } catch {
     res.status(401).json({ error: "Invalid token" });
+  }
+});
+
+authRouter.post("/forgot-password", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: "Email required" });
+  // Always return ok to prevent email enumeration
+  try {
+    const user = await getUserByEmail(String(email).toLowerCase());
+    if (user && user.is_verified) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      await run(
+        "update users set password_reset_code = ?, password_reset_expires = ? where id = ?",
+        [code, expiresAt, user.id]
+      );
+      await sendPasswordResetEmail({ email: user.email, code });
+    }
+  } catch {}
+  res.json({ ok: true });
+});
+
+authRouter.post("/reset-password", async (req, res) => {
+  const { email, code, newPassword } = req.body || {};
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ error: "email, code, and newPassword required" });
+  }
+  if (String(newPassword).length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+  try {
+    const user = await getUserByEmail(String(email).toLowerCase());
+    if (!user || user.password_reset_code !== String(code) || !user.password_reset_expires) {
+      return res.status(400).json({ error: "Invalid or expired reset code" });
+    }
+    if (new Date(user.password_reset_expires) < new Date()) {
+      return res.status(400).json({ error: "Reset code has expired" });
+    }
+    const hash = await hashPassword(newPassword);
+    await updateUserPassword(user.id, hash);
+    await run("update users set password_reset_code = null, password_reset_expires = null where id = ?", [user.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

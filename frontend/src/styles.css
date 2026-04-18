@@ -1070,6 +1070,40 @@ section.payments {
   opacity: 0.5;
 }
 
+/* ── My Offer Actions (pause / edit / delete) ── */
+.my-offer-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.my-offer-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  background: rgba(255,255,255,0.02);
+  flex-wrap: wrap;
+}
+.my-offer-wrapper .offer {
+  border-radius: 12px 12px 0 0;
+}
+.small-btn {
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+  height: auto !important;
+  min-height: unset !important;
+  border-radius: 6px !important;
+}
+.ghost.small-btn.danger {
+  color: var(--red) !important;
+  border-color: var(--red) !important;
+}
+.ghost.small-btn.danger:hover {
+  background: rgba(255,77,77,0.1) !important;
+}
+
 /* ── Dispute Chat (Admin) ────────────────────── */
 .dispute-chat-section { border-top: 1px solid #3a3060; padding-top: 10px; }
 .dispute-chat-log {

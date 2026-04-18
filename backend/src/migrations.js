@@ -338,6 +338,8 @@ export async function runMigrations() {
   await run("alter table users add column if not exists freeze_reason text", []);
   await run("alter table users add column if not exists totp_secret text", []);
   await run("alter table users add column if not exists totp_enabled integer not null default 0", []);
+  await run("alter table users add column if not exists password_reset_code text", []);
+  await run("alter table users add column if not exists password_reset_expires text", []);
   await run("alter table offers add column if not exists payment_details text", []);
   await run("alter table orders add column if not exists dispute_reason text", []);
   await run("alter table orders add column if not exists admin_note text", []);

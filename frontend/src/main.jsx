@@ -18,6 +18,8 @@ import Profile from "./pages/Profile.jsx";
 import Security from "./pages/Security.jsx";
 import { AuthProvider } from "./authContext.jsx";
 import { SocketProvider } from "./socketContext.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 
 // Service Worker register
 if ("serviceWorker" in navigator) {
@@ -47,6 +49,8 @@ createRoot(document.getElementById("root")).render(
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/verify" element={<Verify />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
           </Route>
         </Routes>
         </SocketProvider>
