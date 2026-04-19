@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuthUser } from "../middleware/auth.js";
+import { requireAuth } from "../auth.js";
 import {
   getNotifications,
   getUnreadCount,
@@ -10,7 +10,7 @@ import {
 export const notificationsRouter = Router();
 
 // সব notifications + unread count
-notificationsRouter.get("/", requireAuthUser, async (req, res) => {
+notificationsRouter.get("/", requireAuth, async (req, res) => {
   try {
     const [notifications, unread] = await Promise.all([
       getNotifications(req.user.id, 30),
@@ -23,7 +23,7 @@ notificationsRouter.get("/", requireAuthUser, async (req, res) => {
 });
 
 // সব read করো
-notificationsRouter.patch("/read-all", requireAuthUser, async (req, res) => {
+notificationsRouter.patch("/read-all", requireAuth, async (req, res) => {
   try {
     await markAllRead(req.user.id);
     res.json({ ok: true });
@@ -33,7 +33,7 @@ notificationsRouter.patch("/read-all", requireAuthUser, async (req, res) => {
 });
 
 // একটা read করো
-notificationsRouter.patch("/:id/read", requireAuthUser, async (req, res) => {
+notificationsRouter.patch("/:id/read", requireAuth, async (req, res) => {
   try {
     await markOneRead(req.params.id, req.user.id);
     res.json({ ok: true });
