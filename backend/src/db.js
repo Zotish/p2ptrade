@@ -3,14 +3,18 @@ import { config } from "./config.js";
 
 const { Pool } = pg;
 
+// Railway internal (.railway.internal) → SSL নেই, Neon/external → SSL চাই
+const isExternal = config.databaseUrl.includes("neon.tech") ||
+  config.databaseUrl.includes("supabase") ||
+  config.databaseUrl.includes("railway.app") ||
+  (config.databaseUrl.includes("railway") && !config.databaseUrl.includes(".railway.internal"));
+
 const pool = new Pool({
   connectionString: config.databaseUrl,
-  ssl: config.databaseUrl.includes("neon.tech") || config.databaseUrl.includes("postgres")
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: isExternal ? { rejectUnauthorized: false } : false,
   max: 10,
-  connectionTimeoutMillis: 8000,   // 8s এর মধ্যে connect না হলে error
-  idleTimeoutMillis: 30000,         // 30s idle থাকলে connection close
+  connectionTimeoutMillis: 8000,
+  idleTimeoutMillis: 30000,
   allowExitOnIdle: false
 });
 
