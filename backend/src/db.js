@@ -3,15 +3,12 @@ import { config } from "./config.js";
 
 const { Pool } = pg;
 
-// Railway internal (.railway.internal) → SSL নেই, Neon/external → SSL চাই
-const isExternal = config.databaseUrl.includes("neon.tech") ||
-  config.databaseUrl.includes("supabase") ||
-  config.databaseUrl.includes("railway.app") ||
-  (config.databaseUrl.includes("railway") && !config.databaseUrl.includes(".railway.internal"));
+// Internal Railway (.railway.internal) → SSL নেই, বাকি সব → SSL চাই
+const isInternal = config.databaseUrl.includes(".railway.internal");
 
 const pool = new Pool({
   connectionString: config.databaseUrl,
-  ssl: isExternal ? { rejectUnauthorized: false } : false,
+  ssl: isInternal ? false : { rejectUnauthorized: false },
   max: 10,
   connectionTimeoutMillis: 8000,
   idleTimeoutMillis: 30000,
