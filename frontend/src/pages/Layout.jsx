@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../authContext.jsx";
+import NotificationBell from "../components/NotificationBell.jsx";
 
 export default function Layout() {
   const { user, logout, loading } = useAuth();
@@ -70,6 +71,7 @@ export default function Layout() {
 
         {/* Desktop CTA */}
         <div className="nav-cta">
+          {user && <NotificationBell />}
           {user ? (
             <button className="ghost" onClick={logout}>Logout</button>
           ) : (

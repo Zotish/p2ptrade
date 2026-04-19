@@ -13,13 +13,7 @@ import { emitToUser } from "../socket.js";
 import { logAudit } from "../repositories/auditLog.js";
 import { orderCreateLimiter, orderActionLimiter } from "../middleware/rateLimiter.js";
 import { createRating, getRatingByOrder } from "../repositories/ratings.js";
-import {
-  sendOrderCreatedEmail,
-  sendPaymentSubmittedEmail,
-  sendOrderReleasedEmail,
-  sendPaymentRejectedEmail,
-  sendDisputeRaisedEmail
-} from "../services/emailService.js";
+import { createNotification } from "../repositories/notifications.js";
 import { getUserById } from "../repositories/users.js";
 
 export const ordersRouter = Router();
@@ -69,20 +63,17 @@ ordersRouter.post("/", requireAuth, orderCreateLimiter, async (req, res) => {
       expiresAt
     });
 
-    // Email notification to seller (fire-and-forget)
+    // In-app notification to seller (fire-and-forget)
     getOfferById(offerId).then(async (off) => {
       if (!off) return;
-      const seller = await getUserById(off.maker_user_id);
-      if (seller?.email) {
-        sendOrderCreatedEmail({
-          sellerEmail: seller.email,
-          orderId: order.id,
-          amountFiat: parsedFiat,
-          fiat: off.fiat,
-          token: off.token,
-          buyerHandle: null
-        }).catch(() => {});
-      }
+      const notif = await createNotification({
+        userId: off.maker_user_id,
+        type: "order_created",
+        title: "নতুন Trade Request 🔔",
+        body: `${parsedFiat} ${off.fiat} এর একটি নতুন order এসেছে`,
+        data: { orderId: order.id }
+      });
+      emitToUser(off.maker_user_id, "notification", notif);
     }).catch(() => {});
     res.status(201).json({ order });
   } catch (error) {
@@ -223,18 +214,16 @@ ordersRouter.post("/:id/pay", requireAuth, orderActionLimiter, async (req, res) 
       });
     }
 
-    getUserById(offer?.maker_user_id).then(seller => {
-      if (seller?.email) {
-        sendPaymentSubmittedEmail({
-          sellerEmail: seller.email,
-          orderId: order.id,
-          amountFiat: order.amount_fiat,
-          fiat: offer.fiat,
-          method: payment?.method,
-          reference: payment?.reference
-        }).catch(() => {});
-      }
-    }).catch(() => {});
+    // In-app notification to seller
+    if (offer?.maker_user_id) {
+      createNotification({
+        userId: offer.maker_user_id,
+        type: "payment_submitted",
+        title: "Payment Submitted ✅",
+        body: `Buyer ${order.amount_fiat} ${offer.fiat} payment submit করেছে — confirm করুন`,
+        data: { orderId: order.id }
+      }).then(n => emitToUser(offer.maker_user_id, "notification", n)).catch(() => {});
+    }
 
     res.json({ order: updated, payment });
   } catch (error) {
@@ -274,16 +263,14 @@ ordersRouter.post("/:id/confirm", requireAuth, orderActionLimiter, async (req, r
       token: offer.token
     });
 
-    getUserById(order.buyer_user_id).then(buyer => {
-      if (buyer?.email) {
-        sendOrderReleasedEmail({
-          buyerEmail: buyer.email,
-          orderId: order.id,
-          amountToken: order.amount_token,
-          token: offer.token
-        }).catch(() => {});
-      }
-    }).catch(() => {});
+    // In-app notification to buyer
+    createNotification({
+      userId: order.buyer_user_id,
+      type: "order_released",
+      title: "Fund Release হয়েছে 🎉",
+      body: `${order.amount_token} ${offer.token} তোমার wallet-এ পাঠানো হয়েছে`,
+      data: { orderId: order.id }
+    }).then(n => emitToUser(order.buyer_user_id, "notification", n)).catch(() => {});
 
     res.json({ order: updated, escrow });
   } catch (error) {
@@ -322,16 +309,14 @@ ordersRouter.post("/:id/reject", requireAuth, orderActionLimiter, async (req, re
       fiat: offer.fiat
     });
 
-    getUserById(order.buyer_user_id).then(buyer => {
-      if (buyer?.email) {
-        sendPaymentRejectedEmail({
-          buyerEmail: buyer.email,
-          orderId: order.id,
-          amountFiat: order.amount_fiat,
-          fiat: offer?.fiat
-        }).catch(() => {});
-      }
-    }).catch(() => {});
+    // In-app notification to buyer
+    createNotification({
+      userId: order.buyer_user_id,
+      type: "payment_rejected",
+      title: "Payment Reject হয়েছে ❌",
+      body: `Seller তোমার ${order.amount_fiat} ${offer?.fiat} payment reject করেছে`,
+      data: { orderId: order.id }
+    }).then(n => emitToUser(order.buyer_user_id, "notification", n)).catch(() => {});
 
     res.json({ order: updated });
   } catch (error) {
@@ -373,18 +358,25 @@ ordersRouter.post("/:id/dispute", requireAuth, orderActionLimiter, async (req, r
       });
     }
 
-    Promise.all([
-      offer ? getUserById(offer.maker_user_id) : Promise.resolve(null),
-    ]).then(([seller]) => {
-      sendDisputeRaisedEmail({
-        sellerEmail: seller?.email,
-        adminEmail: config.adminEmail || null,
-        orderId: order.id,
-        reason: trimmedReason,
-        amountFiat: order.amount_fiat,
-        fiat: offer?.fiat
-      }).catch(() => {});
-    }).catch(() => {});
+    // In-app notifications — seller + buyer উভয়কে জানাও
+    const disputeNotifs = [];
+    if (offer?.maker_user_id) {
+      disputeNotifs.push(createNotification({
+        userId: offer.maker_user_id,
+        type: "dispute_raised",
+        title: "Dispute উঠেছে ⚠️",
+        body: `Order #${order.id.slice(0, 8)} নিয়ে buyer dispute করেছে`,
+        data: { orderId: order.id }
+      }).then(n => emitToUser(offer.maker_user_id, "notification", n)));
+    }
+    disputeNotifs.push(createNotification({
+      userId: order.buyer_user_id,
+      type: "dispute_raised",
+      title: "Dispute Submit হয়েছে ⚠️",
+      body: "তোমার dispute admin review করবে",
+      data: { orderId: order.id }
+    }).then(n => emitToUser(order.buyer_user_id, "notification", n)));
+    Promise.all(disputeNotifs).catch(() => {});
 
     res.json({ order: updated });
   } catch (error) {

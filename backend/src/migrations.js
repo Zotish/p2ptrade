@@ -410,4 +410,20 @@ export async function runMigrations() {
   );
   await run("create index if not exists ratings_rated_user_idx on ratings(rated_user_id)", []);
   await run("create index if not exists ratings_rater_user_idx on ratings(rater_user_id)", []);
+
+  // ── In-app notifications ───────────────────────────────────────
+  await run(
+    `create table if not exists notifications (
+      id text primary key,
+      user_id text not null,
+      type text not null,
+      title text not null,
+      body text not null,
+      data text not null default '{}',
+      is_read integer not null default 0,
+      created_at text not null default CURRENT_TIMESTAMP
+    )`,
+    []
+  );
+  await run("create index if not exists notifications_user_idx on notifications(user_id, is_read, created_at)", []);
 }

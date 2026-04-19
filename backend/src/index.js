@@ -49,6 +49,7 @@ import { generalLimiter } from "./middleware/rateLimiter.js";
 import { startBackupScheduler } from "./services/backupScheduler.js";
 import { twofaRouter } from "./routes/twofa.js";
 import { whitelistRouter } from "./routes/whitelist.js";
+import { notificationsRouter } from "./routes/notifications.js";
 import { get } from "./db.js";
 
 // ── Sentry Error Tracking ─────────────────────────────────────────
@@ -134,6 +135,7 @@ app.use("/admin", adminRouter);
 app.use("/chat", chatRouter);
 app.use("/offers", offersRouter);
 app.use("/orders", ordersRouter);
+app.use("/notifications", notificationsRouter);
 
 // ── Sentry Error Handler (routes এর পরে আসবে) ────────────────────
 if (config.sentryDsn) {
