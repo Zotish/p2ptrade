@@ -176,6 +176,12 @@ export async function runMigrations() {
     []
   );
 
+  // Unique constraint on (chain, idx) prevents two users from getting the same derivation index
+  await run(
+    "create unique index if not exists wallet_addresses_chain_idx_unique on wallet_addresses(chain, idx)",
+    []
+  );
+
   await run(
     `create table if not exists deposits (
       id text primary key,

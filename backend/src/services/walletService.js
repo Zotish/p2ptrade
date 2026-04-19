@@ -1,7 +1,8 @@
 import { deriveAddress } from "./hdWallet.js";
-import { createAddress, getNextIndex, getUserChainAddress, listUserAddresses } from "../repositories/wallets.js";
+import { createAddress, getUserChainAddress, listUserAddresses } from "../repositories/wallets.js";
 import { config } from "../config.js";
 import { getChainByCode, listChains } from "../repositories/admin.js";
+import { pool } from "../db.js";
 
 let chainCache = { ts: 0, codes: [] };
 
@@ -18,6 +19,21 @@ export async function getSupportedChains() {
   return codes.slice();
 }
 
+/**
+ * Atomically allocate the next index for a chain using PostgreSQL advisory lock.
+ * pg_advisory_xact_lock serializes concurrent allocations for the same chain,
+ * preventing two users from receiving the same derivation index (and thus the same address).
+ */
+async function allocateAddressIndex(client, chain) {
+  // Use a stable integer lock key derived from the chain string
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`wallet_idx_${chain}`]);
+  const row = await client.query(
+    "SELECT COALESCE(MAX(idx), -1) AS max_idx FROM wallet_addresses WHERE chain = $1",
+    [chain]
+  );
+  return (Number(row.rows[0]?.max_idx) ?? -1) + 1;
+}
+
 export async function getOrCreateAddress(userId, chain) {
   const chainRow = await getChainByCode(chain);
   if (!chainRow || !chainRow.is_active) {
@@ -26,9 +42,33 @@ export async function getOrCreateAddress(userId, chain) {
   const existing = await getUserChainAddress(userId, chain);
   if (existing && !shouldRotateAddress(existing, chainRow)) return existing;
 
-  const idx = await getNextIndex(chain);
-  const derived = deriveAddress(chain, idx, chainRow.kind);
-  return createAddress({ userId, chain, address: derived.address, path: derived.path, idx });
+  // Use a transaction with advisory lock to atomically allocate the index
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const idx = await allocateAddressIndex(client, chain);
+    const derived = deriveAddress(chain, idx, chainRow.kind);
+
+    // Insert inside the same transaction (lock is held until COMMIT)
+    const { randomUUID } = await import("node:crypto");
+    const id = randomUUID();
+    await client.query(
+      `INSERT INTO wallet_addresses (id, user_id, chain, address, path, idx)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, userId, chain, derived.address, derived.path, idx]
+    );
+
+    await client.query("COMMIT");
+
+    const row = await client.query("SELECT * FROM wallet_addresses WHERE id = $1", [id]);
+    return row.rows[0] ?? null;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getUserAddresses(userId) {
