@@ -26,8 +26,9 @@ export async function getUserChainAddress(userId, chain) {
 }
 
 export async function getNextIndex(chain) {
-  const row = await get("select max(idx) as maxIdx from wallet_addresses where chain = ?", [chain]);
-  const next = (row?.maxIdx ?? -1) + 1;
+  // PostgreSQL returns lowercase column names — use max_idx (not maxIdx)
+  const row = await get("select max(idx) as max_idx from wallet_addresses where chain = ?", [chain]);
+  const next = (row?.max_idx ?? -1) + 1;
   return next;
 }
 
