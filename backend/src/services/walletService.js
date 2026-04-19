@@ -1,8 +1,7 @@
 import { deriveAddress } from "./hdWallet.js";
-import { createAddress, getUserChainAddress, listUserAddresses } from "../repositories/wallets.js";
+import { createAddress, getNextIndex, getUserChainAddress, listUserAddresses } from "../repositories/wallets.js";
 import { config } from "../config.js";
 import { getChainByCode, listChains } from "../repositories/admin.js";
-import { pool } from "../db.js";
 
 let chainCache = { ts: 0, codes: [] };
 
@@ -20,20 +19,12 @@ export async function getSupportedChains() {
 }
 
 /**
- * Atomically allocate the next index for a chain using PostgreSQL advisory lock.
- * pg_advisory_xact_lock serializes concurrent allocations for the same chain,
- * preventing two users from receiving the same derivation index (and thus the same address).
+ * Get or create a wallet address for a user on a given chain.
+ * Uses a retry loop to handle the rare race condition where two concurrent
+ * signups try to claim the same derivation index simultaneously.
+ * The UNIQUE(chain, idx) constraint in the DB ensures no two users ever share
+ * the same address — failed inserts are retried with the next available index.
  */
-async function allocateAddressIndex(client, chain) {
-  // Use a stable integer lock key derived from the chain string
-  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`wallet_idx_${chain}`]);
-  const row = await client.query(
-    "SELECT COALESCE(MAX(idx), -1) AS max_idx FROM wallet_addresses WHERE chain = $1",
-    [chain]
-  );
-  return (Number(row.rows[0]?.max_idx) ?? -1) + 1;
-}
-
 export async function getOrCreateAddress(userId, chain) {
   const chainRow = await getChainByCode(chain);
   if (!chainRow || !chainRow.is_active) {
@@ -42,33 +33,26 @@ export async function getOrCreateAddress(userId, chain) {
   const existing = await getUserChainAddress(userId, chain);
   if (existing && !shouldRotateAddress(existing, chainRow)) return existing;
 
-  // Use a transaction with advisory lock to atomically allocate the index
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
-    const idx = await allocateAddressIndex(client, chain);
+  // Retry loop: on unique idx collision, re-fetch max and try again
+  const MAX_ATTEMPTS = 10;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const idx = await getNextIndex(chain);
     const derived = deriveAddress(chain, idx, chainRow.kind);
-
-    // Insert inside the same transaction (lock is held until COMMIT)
-    const { randomUUID } = await import("node:crypto");
-    const id = randomUUID();
-    await client.query(
-      `INSERT INTO wallet_addresses (id, user_id, chain, address, path, idx)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, userId, chain, derived.address, derived.path, idx]
-    );
-
-    await client.query("COMMIT");
-
-    const row = await client.query("SELECT * FROM wallet_addresses WHERE id = $1", [id]);
-    return row.rows[0] ?? null;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
+    try {
+      return await createAddress({ userId, chain, address: derived.address, path: derived.path, idx });
+    } catch (err) {
+      // PostgreSQL unique violation code = '23505'
+      const isIdxConflict =
+        err.code === "23505" &&
+        (err.constraint?.includes("chain_idx") || err.constraint?.includes("idx_unique") || String(err.detail || "").includes("(chain, idx)"));
+      if (isIdxConflict) {
+        // Another concurrent request claimed this idx — retry with a fresh max
+        continue;
+      }
+      throw err;
+    }
   }
+  throw new Error(`Failed to allocate unique wallet index for ${chain} after ${MAX_ATTEMPTS} attempts`);
 }
 
 export async function getUserAddresses(userId) {
