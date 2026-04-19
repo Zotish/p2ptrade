@@ -8,7 +8,10 @@ const pool = new Pool({
   ssl: config.databaseUrl.includes("neon.tech") || config.databaseUrl.includes("postgres")
     ? { rejectUnauthorized: false }
     : false,
-  max: 10
+  max: 10,
+  connectionTimeoutMillis: 8000,   // 8s এর মধ্যে connect না হলে error
+  idleTimeoutMillis: 30000,         // 30s idle থাকলে connection close
+  allowExitOnIdle: false
 });
 
 pool.on("error", (err) => console.error("[db] Pool error:", err.message));

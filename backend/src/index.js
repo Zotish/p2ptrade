@@ -49,6 +49,7 @@ import { generalLimiter } from "./middleware/rateLimiter.js";
 import { startBackupScheduler } from "./services/backupScheduler.js";
 import { twofaRouter } from "./routes/twofa.js";
 import { whitelistRouter } from "./routes/whitelist.js";
+import { get } from "./db.js";
 
 // ── Sentry Error Tracking ─────────────────────────────────────────
 if (config.sentryDsn) {
@@ -116,6 +117,13 @@ if (fs.existsSync(frontendDist)) {
 }
 
 app.use("/health", healthRouter);
+
+// DB ready guard — DB heal হওয়ার আগে requests হ্যাং না করে proper error দেবে
+app.use((req, res, next) => {
+  if (dbReady) return next();
+  res.status(503).json({ error: "Server is starting up, please retry in a few seconds." });
+});
+
 app.use("/auth", authRouter);
 app.use("/2fa", twofaRouter);
 app.use("/wallets/whitelist", whitelistRouter);  // must be BEFORE /wallets
@@ -157,11 +165,16 @@ initSocket(httpServer);
 let watchersStarted = false;
 async function dbHealthCheck() {
   try {
-    const { get } = await import("./db.js");
-    // যদি users table না থাকে তাহলে DB মুছে ফেলা হয়েছে বুঝতে হবে
     await get("SELECT 1 FROM users LIMIT 1", []);
+    // যদি আগে heal হয়েছিল কিন্তু dbReady false হয়ে গিয়েছিল
+    if (!dbReady) {
+      dbReady = true;
+      console.log("[db-heal] DB back online — resuming");
+    }
   } catch (_) {
-    console.log("[db-heal] Tables missing — re-running migrations & seed...");
+    // Table missing বা DB unreachable — heal করো
+    dbReady = false; // নতুন requests 503 পাবে হ্যাং হবে না
+    console.log("[db-heal] DB issue detected — re-running migrations & seed...");
     try {
       await runMigrations();
       await seedAdminCatalog();
@@ -175,6 +188,7 @@ async function dbHealthCheck() {
       console.log("[db-heal] ✅ Database restored successfully");
     } catch (healErr) {
       console.error("[db-heal] ❌ Heal failed:", healErr.message);
+      dbReady = false;
     }
   }
 }
